@@ -5,6 +5,8 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -33,21 +35,42 @@ const TransactionFormScreen = () => {
   const [amount, setAmount] = useState('');
   const [categoryId, setCategoryId] = useState('');
   const [accountId, setAccountId] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const filteredCats = categories.filter((c) => c.type === type);
 
+  const parseAmount = (text: string): number => {
+    // Trata formato brasileiro: "1.500,50" → "1500.50"
+    const cleaned = text.replace(/\./g, '').replace(',', '.');
+    return parseFloat(cleaned) || 0;
+  };
+
   const handleSubmit = async () => {
-    if (!description || !amount || !categoryId || !accountId) return;
-    await addTransaction({
-      description,
-      amount: parseFloat(amount),
-      type,
-      categoryId,
-      accountId,
-      date: new Date().toISOString().split('T')[0],
-      recurring: false,
-    });
-    navigation.goBack();
+    setError('');
+    if (!description.trim()) { setError('Informe a descrição.'); return; }
+    const parsedAmount = parseAmount(amount);
+    if (!parsedAmount || parsedAmount <= 0) { setError('Informe um valor válido.'); return; }
+    if (!categoryId) { setError('Selecione uma categoria.'); return; }
+    if (!accountId) { setError('Selecione uma conta.'); return; }
+
+    setLoading(true);
+    try {
+      await addTransaction({
+        description: description.trim(),
+        amount: parsedAmount,
+        type,
+        categoryId,
+        accountId,
+        date: new Date().toISOString().split('T')[0],
+        recurring: false,
+      });
+      navigation.goBack();
+    } catch {
+      setError('Falha ao salvar. Tente novamente.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -55,8 +78,8 @@ const TransactionFormScreen = () => {
       <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
         {/* Type Toggle */}
         <View style={styles.typeRow}>
-          <PillButton label="Despesa" active={type === 'expense'} onPress={() => setType('expense')} style={styles.typePill} />
-          <PillButton label="Receita" active={type === 'income'} onPress={() => setType('income')} style={styles.typePill} />
+          <PillButton label="Despesa" active={type === 'expense'} onPress={() => { setType('expense'); setCategoryId(''); }} style={styles.typePill} />
+          <PillButton label="Receita" active={type === 'income'} onPress={() => { setType('income'); setCategoryId(''); }} style={styles.typePill} />
         </View>
 
         <InputField
@@ -76,64 +99,88 @@ const TransactionFormScreen = () => {
 
         {/* Category Selector */}
         <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Categoria</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
-          {filteredCats.map((cat) => (
-            <TouchableOpacity
-              key={cat.id}
-              onPress={() => setCategoryId(cat.id)}
-              style={[
-                styles.chip,
-                {
-                  backgroundColor: categoryId === cat.id ? colors.primary : colors.mutedBg,
-                },
-              ]}
-            >
-              <Text style={styles.chipEmoji}>{cat.icon}</Text>
-              <Text
+        {filteredCats.length === 0 ? (
+          <Text style={[styles.emptyHint, { color: colors.textMuted }]}>
+            Nenhuma categoria de {type === 'income' ? 'receita' : 'despesa'} encontrada.
+          </Text>
+        ) : (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
+            {filteredCats.map((cat) => (
+              <TouchableOpacity
+                key={cat.id}
+                onPress={() => setCategoryId(cat.id)}
                 style={[
-                  styles.chipText,
-                  { color: categoryId === cat.id ? '#fff' : colors.textSecondary },
+                  styles.chip,
+                  {
+                    backgroundColor: categoryId === cat.id ? colors.primary : colors.mutedBg,
+                  },
                 ]}
               >
-                {cat.name}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
+                <Text style={styles.chipEmoji}>{cat.icon}</Text>
+                <Text
+                  style={[
+                    styles.chipText,
+                    { color: categoryId === cat.id ? '#fff' : colors.textSecondary },
+                  ]}
+                >
+                  {cat.name}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        )}
 
         {/* Account Selector */}
         <Text style={[styles.fieldLabel, { color: colors.textSecondary, marginTop: 16 }]}>Conta</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
-          {accounts.map((acc) => (
-            <TouchableOpacity
-              key={acc.id}
-              onPress={() => setAccountId(acc.id)}
-              style={[
-                styles.chip,
-                {
-                  backgroundColor: accountId === acc.id ? colors.primary : colors.mutedBg,
-                },
-              ]}
-            >
-              <Text
+        {accounts.length === 0 ? (
+          <Text style={[styles.emptyHint, { color: colors.textMuted }]}>
+            Crie uma conta em "Mais → Gerenciar Contas" antes de adicionar transações.
+          </Text>
+        ) : (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
+            {accounts.map((acc) => (
+              <TouchableOpacity
+                key={acc.id}
+                onPress={() => setAccountId(acc.id)}
                 style={[
-                  styles.chipText,
-                  { color: accountId === acc.id ? '#fff' : colors.textSecondary },
+                  styles.chip,
+                  {
+                    backgroundColor: accountId === acc.id ? colors.primary : colors.mutedBg,
+                  },
                 ]}
               >
-                {acc.name}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
+                <Text
+                  style={[
+                    styles.chipText,
+                    { color: accountId === acc.id ? '#fff' : colors.textSecondary },
+                  ]}
+                >
+                  {acc.name}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        )}
+
+        {/* Error */}
+        {error ? (
+          <Text style={[styles.errorText, { color: colors.destructive }]}>{error}</Text>
+        ) : null}
 
         {/* Submit */}
         <TouchableOpacity
-          style={[styles.submitBtn, { backgroundColor: colors.primary, marginTop: 32 }]}
+          style={[styles.submitBtn, { backgroundColor: colors.primary, marginTop: error ? 12 : 32, opacity: loading ? 0.7 : 1 }]}
           onPress={handleSubmit}
+          disabled={loading}
         >
-          <Ionicons name="checkmark" size={20} color="#fff" />
-          <Text style={styles.submitText}>Adicionar Transação</Text>
+          {loading ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <>
+              <Ionicons name="checkmark" size={20} color="#fff" />
+              <Text style={styles.submitText}>Adicionar Transação</Text>
+            </>
+          )}
         </TouchableOpacity>
 
         <View style={{ height: 40 }} />
@@ -193,6 +240,18 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '700',
+  },
+  emptyHint: {
+    fontSize: 13,
+    fontStyle: 'italic',
+    marginBottom: 8,
+    paddingLeft: 4,
+  },
+  errorText: {
+    fontSize: 13,
+    fontWeight: '500',
+    marginTop: 16,
+    textAlign: 'center',
   },
 });
 

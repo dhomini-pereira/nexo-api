@@ -1,6 +1,16 @@
-import React from 'react';
-import { View, Text, StyleSheet, Dimensions } from 'react-native';
-import Svg, { Path, Defs, LinearGradient, Stop, Line, Text as SvgText } from 'react-native-svg';
+import React, { useState, useCallback } from 'react';
+import { View, Text, StyleSheet, Dimensions, TouchableOpacity } from 'react-native';
+import Svg, {
+  Path,
+  Defs,
+  LinearGradient,
+  Stop,
+  Line,
+  Circle,
+  Rect,
+  Text as SvgText,
+  G,
+} from 'react-native-svg';
 import { useTheme } from '@/theme/ThemeProvider';
 
 interface DataPoint {
@@ -14,9 +24,22 @@ interface SpendingChartProps {
   hidden?: boolean;
 }
 
-const SpendingChart: React.FC<SpendingChartProps> = ({ data, height = 140, hidden = false }) => {
+const formatValue = (v: number): string => {
+  if (v >= 1000) return `R$${(v / 1000).toFixed(1)}k`;
+  return `R$${v.toFixed(0)}`;
+};
+
+const SpendingChart: React.FC<SpendingChartProps> = ({ data, height = 160, hidden = false }) => {
   const { colors } = useTheme();
-  const width = Dimensions.get('window').width - 80; // padding considerado
+  const width = Dimensions.get('window').width - 80;
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+
+  const handleTap = useCallback(
+    (index: number) => {
+      setSelectedIndex((prev) => (prev === index ? null : index));
+    },
+    [],
+  );
 
   if (hidden) {
     return (
@@ -35,7 +58,7 @@ const SpendingChart: React.FC<SpendingChartProps> = ({ data, height = 140, hidde
   }
 
   const maxValue = Math.max(...data.map((d) => d.value), 1);
-  const paddingTop = 16;
+  const paddingTop = 28; // espaço para tooltip
   const paddingBottom = 28;
   const chartHeight = height - paddingTop - paddingBottom;
   const stepX = width / (data.length - 1 || 1);
@@ -69,6 +92,15 @@ const SpendingChart: React.FC<SpendingChartProps> = ({ data, height = 140, hidde
   const linePath = buildPath();
   const areaPath = `${linePath} L ${points[points.length - 1].x} ${height - paddingBottom} L ${points[0].x} ${height - paddingBottom} Z`;
 
+  // Tooltip helpers
+  const getTooltipX = (px: number) => {
+    const tooltipW = 64;
+    let tx = px - tooltipW / 2;
+    if (tx < 0) tx = 0;
+    if (tx + tooltipW > width) tx = width - tooltipW;
+    return tx;
+  };
+
   return (
     <View style={{ height }}>
       <Svg width={width} height={height}>
@@ -100,17 +132,71 @@ const SpendingChart: React.FC<SpendingChartProps> = ({ data, height = 140, hidde
         <Path d={areaPath} fill="url(#areaGrad)" />
 
         {/* Line */}
-        <Path d={linePath} fill="none" stroke={colors.primary} strokeWidth={2.5} strokeLinecap="round" />
+        <Path
+          d={linePath}
+          fill="none"
+          stroke={colors.primary}
+          strokeWidth={2.5}
+          strokeLinecap="round"
+        />
+
+        {/* Selected vertical line */}
+        {selectedIndex !== null && (
+          <Line
+            x1={points[selectedIndex].x}
+            y1={paddingTop}
+            x2={points[selectedIndex].x}
+            y2={height - paddingBottom}
+            stroke={colors.primary}
+            strokeWidth={1}
+            strokeDasharray="3,3"
+            opacity={0.5}
+          />
+        )}
 
         {/* Dots */}
-        {points.map((p, i) => (
-          <React.Fragment key={i}>
-            <Path
-              d={`M ${p.x - 3.5} ${p.y} a 3.5 3.5 0 1 0 7 0 a 3.5 3.5 0 1 0 -7 0`}
+        {points.map((p, i) => {
+          const isSelected = selectedIndex === i;
+          return (
+            <G key={i}>
+              {isSelected && (
+                <Circle cx={p.x} cy={p.y} r={10} fill={colors.primary} opacity={0.15} />
+              )}
+              <Circle
+                cx={p.x}
+                cy={p.y}
+                r={isSelected ? 5 : 3.5}
+                fill={isSelected ? '#fff' : colors.primary}
+                stroke={colors.primary}
+                strokeWidth={isSelected ? 2.5 : 0}
+              />
+            </G>
+          );
+        })}
+
+        {/* Tooltip */}
+        {selectedIndex !== null && (
+          <G>
+            <Rect
+              x={getTooltipX(points[selectedIndex].x)}
+              y={0}
+              width={64}
+              height={22}
+              rx={6}
               fill={colors.primary}
             />
-          </React.Fragment>
-        ))}
+            <SvgText
+              x={getTooltipX(points[selectedIndex].x) + 32}
+              y={15}
+              fill="#fff"
+              fontSize={10}
+              fontWeight="700"
+              textAnchor="middle"
+            >
+              {formatValue(data[selectedIndex].value)}
+            </SvgText>
+          </G>
+        )}
 
         {/* Labels */}
         {data.map((d, i) => (
@@ -118,13 +204,26 @@ const SpendingChart: React.FC<SpendingChartProps> = ({ data, height = 140, hidde
             key={i}
             x={points[i].x}
             y={height - 6}
-            fill={colors.textMuted}
+            fill={selectedIndex === i ? colors.primary : colors.textMuted}
             fontSize={9}
-            fontWeight="500"
+            fontWeight={selectedIndex === i ? '700' : '500'}
             textAnchor="middle"
           >
             {d.label}
           </SvgText>
+        ))}
+
+        {/* Touch areas (invisible rectangles) */}
+        {points.map((p, i) => (
+          <Rect
+            key={`touch-${i}`}
+            x={p.x - stepX / 2}
+            y={0}
+            width={stepX}
+            height={height}
+            fill="transparent"
+            onPress={() => handleTap(i)}
+          />
         ))}
       </Svg>
     </View>

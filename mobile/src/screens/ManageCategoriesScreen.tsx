@@ -5,6 +5,7 @@ import {
   ScrollView,
   StyleSheet,
   TouchableOpacity,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -77,9 +78,14 @@ const ManageCategoriesScreen = () => {
 
   const handleDelete = async () => {
     if (toDelete) {
-      await deleteCategory(toDelete.id);
-      setDeleteVisible(false);
-      setToDelete(null);
+      try {
+        await deleteCategory(toDelete.id);
+        setDeleteVisible(false);
+        setToDelete(null);
+      } catch {
+        setDeleteVisible(false);
+        Alert.alert('Erro', 'Não foi possível excluir a categoria.');
+      }
     }
   };
 

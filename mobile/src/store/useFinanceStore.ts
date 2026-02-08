@@ -124,6 +124,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
       await get().fetchAll();
     } catch (err: any) {
       set({ error: err.message });
+      throw err;
     }
   },
 
@@ -174,6 +175,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
       set({ categories: get().categories.filter((c) => c.id !== id) });
     } catch (err: any) {
       set({ error: err.message });
+      throw err;
     }
   },
 

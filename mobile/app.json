@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "FinançasPro",
-    "slug": "financas-pro",
+    "name": "Nexo",
+    "slug": "nexo",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -14,7 +14,7 @@
     "assetBundlePatterns": ["**/*"],
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.financaspro.app",
+      "bundleIdentifier": "com.nexo.app",
       "infoPlist": {
         "NSFaceIDUsageDescription": "Permite acesso rápido ao app com Face ID"
       }
@@ -24,7 +24,7 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0f172a"
       },
-      "package": "com.financaspro.app"
+      "package": "com.nexo.app"
     },
     "plugins": [
       [
