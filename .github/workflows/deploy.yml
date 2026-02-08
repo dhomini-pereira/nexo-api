@@ -1,4 +1,7 @@
 name: Vercel Production Deployment
+env:
+  VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+  VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 on:
   push:
     branches:
@@ -13,9 +16,9 @@ jobs:
         working-directory: nexo-back-end
 
       - name: Pull Vercel Environment Information
-        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }} --project nexo-back-end --confirm
+        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
         working-directory: nexo-back-end
 
       - name: Deploy Project Artifacts
-        run: vercel deploy --prod --yes --token=${{ secrets.VERCEL_TOKEN }} --project nexo-back-end
+        run: vercel deploy --prod --yes --token=${{ secrets.VERCEL_TOKEN }}
         working-directory: nexo-back-end
