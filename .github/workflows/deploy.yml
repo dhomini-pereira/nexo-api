@@ -10,12 +10,12 @@ jobs:
       - uses: actions/checkout@v2
       - name: Install Vercel CLI
         run: npm install --global vercel@latest
-        working-directory: back-end
+        working-directory: nexo-back-end
 
       - name: Pull Vercel Environment Information
         run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }} --project nexo-back-end --confirm
-        working-directory: back-end
+        working-directory: nexo-back-end
 
       - name: Deploy Project Artifacts
         run: vercel deploy --prod --yes --token=${{ secrets.VERCEL_TOKEN }} --project nexo-back-end
-        working-directory: back-end
+        working-directory: nexo-back-end
