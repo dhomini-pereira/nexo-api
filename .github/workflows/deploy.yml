@@ -2,23 +2,40 @@ name: Vercel Production Deployment
 env:
   VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
   VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
 on:
   push:
     branches:
       - master
+
 jobs:
-  Deploy-Production:
+  deploy-production:
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 23
+
+      - name: Install dependencies
+        run: npm install
+        working-directory: nexo-back-end
+
+      - name: Build project
+        run: npm run build
+        working-directory: nexo-back-end
+
       - name: Install Vercel CLI
-        run: npm install --global vercel@latest
+        run: npm install -g vercel
         working-directory: nexo-back-end
 
-      - name: Pull Vercel Environment Information
-        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+      - name: Link Vercel project
+        run: vercel link --confirm --token=${{ secrets.VERCEL_TOKEN }}
         working-directory: nexo-back-end
 
-      - name: Deploy Project Artifacts
+      - name: Deploy to Vercel
         run: vercel deploy --prod --yes --token=${{ secrets.VERCEL_TOKEN }}
         working-directory: nexo-back-end
