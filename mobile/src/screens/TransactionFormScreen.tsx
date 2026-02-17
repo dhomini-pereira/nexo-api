@@ -45,6 +45,7 @@ const TransactionFormScreen = () => {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [recurring, setRecurring] = useState(false);
   const [recurrence, setRecurrence] = useState<'daily' | 'weekly' | 'monthly' | 'yearly'>('monthly');
+  const [recurrenceCount, setRecurrenceCount] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -70,9 +71,10 @@ const TransactionFormScreen = () => {
   };
 
   const handleSubmit = async () => {
+    if (loading) return; // guard double-tap
     setError('');
-    if (!description.trim()) { setError('Informe a descrição.'); return; }
     const parsedAmount = parseCurrencyInput(amount);
+    if (!description.trim()) { setError('Informe a descrição.'); return; }
     if (!parsedAmount || parsedAmount <= 0) { setError('Informe um valor válido.'); return; }
     if (!categoryId) { setError('Selecione uma categoria.'); return; }
     if (!accountId) { setError('Selecione uma conta.'); return; }
@@ -88,13 +90,15 @@ const TransactionFormScreen = () => {
         date: toISODate(date),
         recurring,
         ...(recurring ? { recurrence } : {}),
+        ...(recurring && recurrenceCount.trim() ? { recurrenceCount: parseInt(recurrenceCount, 10) || null } : {}),
       });
-      navigation.goBack();
     } catch {
       setError('Falha ao salvar. Tente novamente.');
-    } finally {
       setLoading(false);
+      return;
     }
+    setLoading(false);
+    navigation.goBack();
   };
 
   return (
@@ -209,6 +213,18 @@ const TransactionFormScreen = () => {
                 onPress={() => setRecurrence(opt.value)}
               />
             ))}
+          </View>
+        )}
+
+        {recurring && (
+          <View style={{ marginTop: 12 }}>
+            <InputField
+              label="Número de parcelas (opcional)"
+              value={recurrenceCount}
+              onChangeText={setRecurrenceCount}
+              placeholder="Ex: 12 (vazio = infinito)"
+              keyboardType="numeric"
+            />
           </View>
         )}
 

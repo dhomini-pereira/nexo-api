@@ -26,7 +26,7 @@ export class TransactionRepository {
     userId: string,
     data: {
       account_id: string;
-      category_id: string;
+      category_id: string | null;
       description: string;
       amount: number;
       type: string;
@@ -34,14 +34,16 @@ export class TransactionRepository {
       recurring: boolean;
       recurrence?: string | null;
       next_due_date?: string | null;
+      recurrence_count?: number | null;
+      recurrence_current?: number;
     },
     client?: any
   ): Promise<Transaction> {
     const db = client || this.pool;
     const { rows } = await db.query(
-      `INSERT INTO transactions (user_id, account_id, category_id, description, amount, type, date, recurring, recurrence, next_due_date)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
-      [userId, data.account_id, data.category_id, data.description, data.amount, data.type, data.date, data.recurring, data.recurrence ?? null, data.next_due_date ?? null]
+      `INSERT INTO transactions (user_id, account_id, category_id, description, amount, type, date, recurring, recurrence, next_due_date, recurrence_count, recurrence_current)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *`,
+      [userId, data.account_id, data.category_id, data.description, data.amount, data.type, data.date, data.recurring, data.recurrence ?? null, data.next_due_date ?? null, data.recurrence_count ?? null, data.recurrence_current ?? 0]
     );
     return rows[0];
   }

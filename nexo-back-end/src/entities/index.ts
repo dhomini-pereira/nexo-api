@@ -39,6 +39,8 @@ export interface Transaction {
   recurring: boolean;
   recurrence: 'daily' | 'weekly' | 'monthly' | 'yearly' | null;
   next_due_date: string | null;
+  recurrence_count: number | null;
+  recurrence_current: number;
   created_at: Date;
 }
 
@@ -108,6 +110,8 @@ export interface TransactionDTO {
   recurring: boolean;
   recurrence: string | null;
   nextDueDate: string | null;
+  recurrenceCount: number | null;
+  recurrenceCurrent: number;
 }
 
 export interface InvestmentDTO {

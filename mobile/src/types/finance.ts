@@ -30,6 +30,8 @@ export interface Transaction {
   recurring: boolean;
   recurrence?: 'daily' | 'weekly' | 'monthly' | 'yearly';
   nextDueDate?: string | null;
+  recurrenceCount?: number | null;
+  recurrenceCurrent?: number;
 }
 
 export interface Investment {

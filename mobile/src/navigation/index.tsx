@@ -24,7 +24,6 @@ import TransferScreen from '@/screens/TransferScreen';
 
 export type RootStackParamList = {
   Login: undefined;
-  BiometricLock: undefined;
   Main: undefined;
   ManageGoals: undefined;
   ManageCategories: undefined;
@@ -229,12 +228,6 @@ const AppNavigation = () => {
             component={LoginScreen}
             options={{ headerShown: false }}
           />
-        ) : showBiometricLock ? (
-          <Stack.Screen
-            name="BiometricLock"
-            component={BiometricLockScreen}
-            options={{ headerShown: false }}
-          />
         ) : (
           <>
             <Stack.Screen
@@ -275,6 +268,13 @@ const AppNavigation = () => {
           </>
         )}
       </Stack.Navigator>
+
+      {/* Biometric lock overlay — mantém navegação montada por baixo */}
+      {showBiometricLock && (
+        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 100 }}>
+          <BiometricLockScreen />
+        </View>
+      )}
     </NavigationContainer>
   );
 };

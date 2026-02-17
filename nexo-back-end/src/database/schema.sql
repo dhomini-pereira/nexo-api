@@ -111,3 +111,27 @@ BEGIN
 END $$;
 
 CREATE INDEX IF NOT EXISTS idx_transactions_recurring ON transactions(recurring, next_due_date) WHERE recurring = true;
+
+-- Adiciona colunas de parcelas (safe para re-execução)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'transactions' AND column_name = 'recurrence_count'
+  ) THEN
+    ALTER TABLE transactions ADD COLUMN recurrence_count INT;
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'transactions' AND column_name = 'recurrence_current'
+  ) THEN
+    ALTER TABLE transactions ADD COLUMN recurrence_current INT DEFAULT 0;
+  END IF;
+END $$;
+
+-- Índice para buscas por range de datas (filtros de gastos)
+CREATE INDEX IF NOT EXISTS idx_transactions_date_only ON transactions(date);

@@ -14,11 +14,13 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTheme } from '@/theme/ThemeProvider';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useFinanceStore } from '@/store/useFinanceStore';
-import { formatCurrency, maskValue, getMonthDates, formatDateShort, daysAgo } from '@/lib/finance';
+import { formatCurrency, maskValue, getMonthDates, formatDateShort } from '@/lib/finance';
 import ScreenHeader from '@/components/ScreenHeader';
 import BalanceCard from '@/components/BalanceCard';
 import StatCard from '@/components/StatCard';
 import SpendingChart from '@/components/SpendingChart';
+import SpendingInsights from '@/components/SpendingInsights';
+import CategoryLineChart from '@/components/CategoryLineChart';
 import type { RootStackParamList } from '@/navigation';
 
 const DashboardScreen = () => {
@@ -39,16 +41,7 @@ const DashboardScreen = () => {
   const totalIncome = monthTx.filter((t) => t.type === 'income').reduce((s, t) => s + t.amount, 0);
   const totalExpense = monthTx.filter((t) => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
 
-  // Chart data — gastos últimos 7 dias
-  const chartData = useMemo(() => {
-    return Array.from({ length: 7 }, (_, i) => {
-      const day = daysAgo(6 - i);
-      const total = transactions
-        .filter((t) => t.type === 'expense' && t.date === day)
-        .reduce((s, t) => s + t.amount, 0);
-      return { label: formatDateShort(day).split(' ')[0], value: total };
-    });
-  }, [transactions]);
+
 
   const recentTx = useMemo(
     () => [...transactions].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5),
@@ -102,11 +95,26 @@ const DashboardScreen = () => {
           </StatCard>
         </View>
 
-        {/* Spending Chart */}
+        {/* Spending Chart com filtro de período */}
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Gastos últimos 7 dias</Text>
           <StatCard>
-            <SpendingChart data={chartData} hidden={privacyMode} />
+            <SpendingChart transactions={transactions} hidden={privacyMode} />
+          </StatCard>
+        </View>
+
+        {/* Gráfico de linha por categoria */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Gastos por categoria</Text>
+          <StatCard>
+            <CategoryLineChart transactions={monthTx} categories={categories} hidden={privacyMode} privacyMode={privacyMode} />
+          </StatCard>
+        </View>
+
+        {/* Insights de gastos por categoria */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Insights do mês</Text>
+          <StatCard>
+            <SpendingInsights transactions={monthTx} categories={categories} privacyMode={privacyMode} />
           </StatCard>
         </View>
 

@@ -37,6 +37,8 @@ export class TransactionService {
       nextDueDate: t.next_due_date
         ? (typeof t.next_due_date === 'string' ? t.next_due_date : new Date(t.next_due_date).toISOString().split('T')[0])
         : null,
+      recurrenceCount: t.recurrence_count != null ? Number(t.recurrence_count) : null,
+      recurrenceCurrent: Number(t.recurrence_current ?? 0),
     };
   }
 
@@ -48,6 +50,7 @@ export class TransactionService {
   async create(userId: string, data: {
     accountId: string; categoryId: string; description: string;
     amount: number; type: string; date: string; recurring: boolean; recurrence?: string;
+    recurrenceCount?: number | null;
   }): Promise<TransactionDTO> {
     const client = await this.pool.connect();
     try {
@@ -67,6 +70,8 @@ export class TransactionService {
         recurring: data.recurring,
         recurrence: data.recurrence ?? null,
         next_due_date: nextDueDate,
+        recurrence_count: data.recurrenceCount ?? null,
+        recurrence_current: data.recurring ? 1 : 0,
       }, client);
 
       // Atualiza saldo da conta
@@ -141,7 +146,7 @@ export class TransactionService {
       const date = new Date().toISOString().split('T')[0];
       await this.txRepo.create(userId, {
         account_id: fromId,
-        category_id: '',
+        category_id: null,
         description: description || 'Transferência enviada',
         amount,
         type: 'expense',
@@ -151,7 +156,7 @@ export class TransactionService {
 
       await this.txRepo.create(userId, {
         account_id: toId,
-        category_id: '',
+        category_id: null,
         description: description || 'Transferência recebida',
         amount,
         type: 'income',
@@ -171,7 +176,7 @@ export class TransactionService {
   /**
    * Processa todas as transações recorrentes cujo next_due_date <= hoje.
    * Para cada uma, cria uma nova transação (igual) na data devida
-   * e avança o next_due_date.
+   * e avança o next_due_date. Se atingiu o total de parcelas, desativa.
    */
   async processRecurrences(): Promise<{ processed: number }> {
     const today = new Date().toISOString().split('T')[0];
@@ -182,6 +187,8 @@ export class TransactionService {
       const client = await this.pool.connect();
       try {
         await client.query('BEGIN');
+
+        const newCurrent = (Number(tx.recurrence_current) || 0) + 1;
 
         // Cria nova transação na data devida
         await this.txRepo.create(tx.user_id, {
@@ -204,12 +211,25 @@ export class TransactionService {
           await this.accountRepo.updateBalance(tx.account_id, delta, client);
         }
 
-        // Avança o next_due_date da transação recorrente original
-        const currentDue = typeof tx.next_due_date === 'string'
-          ? tx.next_due_date
-          : new Date(tx.next_due_date!).toISOString().split('T')[0];
-        const nextDue = addRecurrence(currentDue, tx.recurrence!);
-        await this.txRepo.updateNextDueDate(tx.id, nextDue, client);
+        // Verifica se atingiu o total de parcelas
+        const count = tx.recurrence_count != null ? Number(tx.recurrence_count) : null;
+        if (count !== null && newCurrent >= count) {
+          // Finalizou todas as parcelas – desativa recorrência
+          await client.query(
+            'UPDATE transactions SET recurring = false, next_due_date = NULL, recurrence_current = $1 WHERE id = $2',
+            [newCurrent, tx.id]
+          );
+        } else {
+          // Avança o next_due_date e incrementa current
+          const currentDue = typeof tx.next_due_date === 'string'
+            ? tx.next_due_date
+            : new Date(tx.next_due_date!).toISOString().split('T')[0];
+          const nextDue = addRecurrence(currentDue, tx.recurrence!);
+          await client.query(
+            'UPDATE transactions SET next_due_date = $1, recurrence_current = $2 WHERE id = $3',
+            [nextDue, newCurrent, tx.id]
+          );
+        }
 
         await client.query('COMMIT');
         processed++;

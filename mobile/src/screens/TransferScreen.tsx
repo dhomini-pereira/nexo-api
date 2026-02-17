@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useTheme } from '@/theme/ThemeProvider';
 import { useFinanceStore } from '@/store/useFinanceStore';
+import ConfirmDialog from '@/components/ConfirmDialog';
 import { formatCurrency, parseCurrencyInput } from '@/lib/finance';
 import InputField from '@/components/InputField';
 import CurrencyInput from '@/components/CurrencyInput';
@@ -42,6 +43,9 @@ const TransferScreen = () => {
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(false);
+  const [successVisible, setSuccessVisible] = useState(false);
+  const [errorVisible, setErrorVisible] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
 
   const fromAccount = accounts.find((a) => a.id === fromId);
   const toAccount = accounts.find((a) => a.id === toId);
@@ -66,13 +70,12 @@ const TransferScreen = () => {
     setLoading(true);
     try {
       await transfer(fromId, toId, parsedAmount, description || undefined);
-      Alert.alert('Sucesso', 'Transferência realizada com sucesso!', [
-        { text: 'OK', onPress: () => navigation.goBack() },
-      ]);
-    } catch (err: any) {
-      Alert.alert('Erro', err.message || 'Falha ao realizar transferência.');
-    } finally {
       setLoading(false);
+      setSuccessVisible(true);
+    } catch (err: any) {
+      setLoading(false);
+      setErrorMsg(err.message || 'Falha ao realizar transferência.');
+      setErrorVisible(true);
     }
   };
 
@@ -228,6 +231,25 @@ const TransferScreen = () => {
 
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      <ConfirmDialog
+        visible={successVisible}
+        onClose={() => { setSuccessVisible(false); navigation.goBack(); }}
+        onConfirm={() => { setSuccessVisible(false); navigation.goBack(); }}
+        title="Sucesso"
+        message="Transferência realizada com sucesso!"
+        confirmLabel="OK"
+      />
+
+      <ConfirmDialog
+        visible={errorVisible}
+        onClose={() => setErrorVisible(false)}
+        onConfirm={() => setErrorVisible(false)}
+        title="Erro"
+        message={errorMsg}
+        confirmLabel="OK"
+        destructive
+      />
     </SafeAreaView>
   );
 };

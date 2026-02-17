@@ -6,7 +6,6 @@ import { authApi, saveTokens, clearTokens, loadTokens } from '@/services/api';
 import type { User } from '@/types/finance';
 
 const SESSION_DURATION_MS = 30 * 24 * 60 * 60 * 1000; // 30 dias
-const GRACE_PERIOD_MS = 2 * 60 * 1000; // 2 minutos – não pede biometria se voltou rápido
 
 interface AuthState {
   user: User | null;
@@ -155,30 +154,15 @@ export const useAuthStore = create<AuthState>()(
         return true;
       },
 
-      // Chamado quando o app vai pro background
+      // Chamado quando o app vai pro background – bloqueia imediatamente
       lockApp: () => {
         if (get().biometricEnabled && get().isAuthenticated) {
-          set({ lastBackgroundTs: Date.now() });
+          set({ biometricLocked: true });
         }
       },
 
-      // Chamado quando o app volta do background
-      handleReturnFromBackground: () => {
-        const { biometricEnabled, isAuthenticated, lastBackgroundTs } = get();
-        if (!biometricEnabled || !isAuthenticated) return;
-        if (!lastBackgroundTs) {
-          // Primeira vez – trata como se tivesse grace
-          return;
-        }
-        const away = Date.now() - lastBackgroundTs;
-        if (away > GRACE_PERIOD_MS) {
-          // Ficou fora por muito tempo → bloqueia
-          set({ biometricLocked: true, lastBackgroundTs: null });
-        } else {
-          // Voltou rápido → não bloqueia (grace period)
-          set({ lastBackgroundTs: null });
-        }
-      },
+      // Chamado quando o app volta do background (noop – bloqueio já ocorreu no lockApp)
+      handleReturnFromBackground: () => {},
 
       restoreSession: async () => {
         const tokens = await loadTokens();
