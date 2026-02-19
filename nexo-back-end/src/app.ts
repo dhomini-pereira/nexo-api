@@ -9,6 +9,7 @@ import { investmentRoutes } from './routes/investments';
 import { goalRoutes } from './routes/goals';
 import { cronRoutes } from './routes/cron';
 import { pushTokenRoutes } from './routes/pushTokens';
+import { creditCardRoutes } from './routes/creditCards';
 
 export async function buildApp() {
   const app = Fastify({
@@ -20,7 +21,6 @@ export async function buildApp() {
     credentials: true,
   });
 
-  // Routes
   await app.register(authRoutes);
   await app.register(accountRoutes);
   await app.register(transactionRoutes);
@@ -29,8 +29,8 @@ export async function buildApp() {
   await app.register(goalRoutes);
   await app.register(cronRoutes);
   await app.register(pushTokenRoutes);
+  await app.register(creditCardRoutes);
 
-  // Health check
   app.get('/health', async () => ({ status: 'ok', timestamp: new Date().toISOString() }));
 
   return app;

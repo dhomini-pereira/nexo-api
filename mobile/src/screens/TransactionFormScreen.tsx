@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTheme } from '@/theme/ThemeProvider';
 import { useFinanceStore } from '@/store/useFinanceStore';
@@ -19,10 +19,11 @@ import PillButton from '@/components/PillButton';
 import InputField from '@/components/InputField';
 import CurrencyInput from '@/components/CurrencyInput';
 import type { RootStackParamList } from '@/navigation';
-import { parseCurrencyInput } from '@/lib/finance';
+import { parseCurrencyInput, formatCurrencyInput } from '@/lib/finance';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 
 type TransactionFormNav = NativeStackNavigationProp<RootStackParamList, 'TransactionForm'>;
+type TransactionFormRoute = RouteProp<RootStackParamList, 'TransactionForm'>;
 
 const recurrenceOptions: { value: 'daily' | 'weekly' | 'monthly' | 'yearly'; label: string }[] = [
   { value: 'daily', label: 'Diário' },
@@ -34,20 +35,58 @@ const recurrenceOptions: { value: 'daily' | 'weekly' | 'monthly' | 'yearly'; lab
 const TransactionFormScreen = () => {
   const { colors } = useTheme();
   const navigation = useNavigation<TransactionFormNav>();
-  const { categories, accounts, addTransaction } = useFinanceStore();
+  const route = useRoute<TransactionFormRoute>();
+  const { categories, accounts, creditCards, transactions, addTransaction, updateTransaction } = useFinanceStore();
+
+  const transactionId = route.params?.transactionId;
+  const existingTx = useMemo(
+    () => (transactionId ? transactions.find((t) => t.id === transactionId) : null),
+    [transactionId, transactions],
+  );
+  const isEdit = !!existingTx;
 
   const [type, setType] = useState<'income' | 'expense'>('expense');
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
   const [categoryId, setCategoryId] = useState('');
   const [accountId, setAccountId] = useState('');
+  const [creditCardId, setCreditCardId] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState<'account' | 'creditCard'>('account');
   const [date, setDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [recurring, setRecurring] = useState(false);
   const [recurrence, setRecurrence] = useState<'daily' | 'weekly' | 'monthly' | 'yearly'>('monthly');
   const [recurrenceCount, setRecurrenceCount] = useState('');
+  const [installments, setInstallments] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (existingTx) {
+      setType(existingTx.type);
+      setDescription(existingTx.description);
+      setAmount(formatCurrencyInput(String(Math.round(existingTx.amount * 100))));
+      setCategoryId(existingTx.categoryId);
+      if (existingTx.creditCardId) {
+        setPaymentMethod('creditCard');
+        setCreditCardId(existingTx.creditCardId);
+        setAccountId('');
+      } else {
+        setPaymentMethod('account');
+        setAccountId(existingTx.accountId || '');
+        setCreditCardId('');
+      }
+      setDate(new Date(existingTx.date + 'T00:00:00'));
+      setRecurring(existingTx.recurring);
+      if (existingTx.recurrence) setRecurrence(existingTx.recurrence);
+      if (existingTx.recurrenceCount) setRecurrenceCount(String(existingTx.recurrenceCount));
+      if (existingTx.installments) setInstallments(String(existingTx.installments));
+    }
+  }, [existingTx]);
+
+  useEffect(() => {
+    navigation.setOptions({ title: isEdit ? 'Editar Transação' : 'Nova Transação' });
+  }, [isEdit, navigation]);
 
   const filteredCats = categories.filter((c) => c.type === type);
 
@@ -71,27 +110,43 @@ const TransactionFormScreen = () => {
   };
 
   const handleSubmit = async () => {
-    if (loading) return; // guard double-tap
+    if (loading) return;
     setError('');
     const parsedAmount = parseCurrencyInput(amount);
     if (!description.trim()) { setError('Informe a descrição.'); return; }
     if (!parsedAmount || parsedAmount <= 0) { setError('Informe um valor válido.'); return; }
     if (!categoryId) { setError('Selecione uma categoria.'); return; }
-    if (!accountId) { setError('Selecione uma conta.'); return; }
+
+    const useCard = type === 'expense' && paymentMethod === 'creditCard';
+    if (useCard && !creditCardId) { setError('Selecione um cartão de crédito.'); return; }
+    if (!useCard && !accountId) { setError('Selecione uma conta.'); return; }
+
+    const parsedInstallments = useCard && installments.trim() ? parseInt(installments, 10) : null;
+    if (useCard && parsedInstallments !== null && (parsedInstallments < 1 || isNaN(parsedInstallments))) {
+      setError('Número de parcelas inválido.'); return;
+    }
 
     setLoading(true);
     try {
-      await addTransaction({
+      const payload: any = {
         description: description.trim(),
         amount: parsedAmount,
         type,
         categoryId,
-        accountId,
+        accountId: useCard ? null : accountId,
+        creditCardId: useCard ? creditCardId : null,
         date: toISODate(date),
         recurring,
         ...(recurring ? { recurrence } : {}),
         ...(recurring && recurrenceCount.trim() ? { recurrenceCount: parseInt(recurrenceCount, 10) || null } : {}),
-      });
+        ...(useCard && parsedInstallments ? { installments: parsedInstallments } : {}),
+      };
+
+      if (isEdit && existingTx) {
+        await updateTransaction(existingTx.id, payload);
+      } else {
+        await addTransaction(payload);
+      }
     } catch {
       setError('Falha ao salvar. Tente novamente.');
       setLoading(false);
@@ -170,23 +225,84 @@ const TransactionFormScreen = () => {
           </ScrollView>
         )}
 
-        <Text style={[styles.fieldLabel, { color: colors.textSecondary, marginTop: 16 }]}>Conta</Text>
-        {accounts.length === 0 ? (
-          <Text style={[styles.emptyHint, { color: colors.textMuted }]}>
-            Crie uma conta na aba "Contas" antes de adicionar transações.
-          </Text>
-        ) : (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
-            {accounts.map((acc) => (
-              <TouchableOpacity
-                key={acc.id}
-                onPress={() => setAccountId(acc.id)}
-                style={[styles.chip, { backgroundColor: accountId === acc.id ? colors.primary : colors.mutedBg }]}
-              >
-                <Text style={[styles.chipText, { color: accountId === acc.id ? '#fff' : colors.textSecondary }]}>{acc.name}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
+        <Text style={[styles.fieldLabel, { color: colors.textSecondary, marginTop: 16 }]}>
+          {type === 'expense' ? 'Método de pagamento' : 'Conta'}
+        </Text>
+
+        {/* Payment method toggle (only for expenses) */}
+        {type === 'expense' && creditCards.length > 0 && (
+          <View style={styles.paymentMethodRow}>
+            <PillButton
+              label="Conta"
+              active={paymentMethod === 'account'}
+              onPress={() => { setPaymentMethod('account'); setCreditCardId(''); }}
+            />
+            <PillButton
+              label="Cartão de Crédito"
+              active={paymentMethod === 'creditCard'}
+              onPress={() => { setPaymentMethod('creditCard'); setAccountId(''); }}
+            />
+          </View>
+        )}
+
+        {/* Account selector */}
+        {(type === 'income' || paymentMethod === 'account') && (
+          <>
+            {type === 'expense' && creditCards.length === 0 && null}
+            {accounts.length === 0 ? (
+              <Text style={[styles.emptyHint, { color: colors.textMuted }]}>
+                Crie uma conta na aba "Contas" antes de adicionar transações.
+              </Text>
+            ) : (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
+                {accounts.map((acc) => (
+                  <TouchableOpacity
+                    key={acc.id}
+                    onPress={() => setAccountId(acc.id)}
+                    style={[styles.chip, { backgroundColor: accountId === acc.id ? colors.primary : colors.mutedBg }]}
+                  >
+                    <Text style={[styles.chipText, { color: accountId === acc.id ? '#fff' : colors.textSecondary }]}>{acc.name}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            )}
+          </>
+        )}
+
+        {/* Credit card selector (only for expenses) */}
+        {type === 'expense' && paymentMethod === 'creditCard' && (
+          <>
+            {creditCards.length === 0 ? (
+              <Text style={[styles.emptyHint, { color: colors.textMuted }]}>
+                Cadastre um cartão de crédito primeiro.
+              </Text>
+            ) : (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
+                {creditCards.map((card) => (
+                  <TouchableOpacity
+                    key={card.id}
+                    onPress={() => setCreditCardId(card.id)}
+                    style={[styles.chip, { backgroundColor: creditCardId === card.id ? card.color : colors.mutedBg }]}
+                  >
+                    <Ionicons name="card-outline" size={14} color={creditCardId === card.id ? '#fff' : colors.textSecondary} />
+                    <Text style={[styles.chipText, { color: creditCardId === card.id ? '#fff' : colors.textSecondary }]}>{card.name}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            )}
+
+            {/* Installments input (only for credit card) */}
+            <View style={{ marginTop: 12 }}>
+              <InputField
+                label="Parcelas (opcional)"
+                value={installments}
+                onChangeText={(t) => setInstallments(t.replace(/[^0-9]/g, ''))}
+                placeholder="Ex: 3 (vazio = à vista)"
+                keyboardType="numeric"
+                maxLength={3}
+              />
+            </View>
+          </>
         )}
 
         {/* Recorrência */}
@@ -242,7 +358,7 @@ const TransactionFormScreen = () => {
           ) : (
             <>
               <Ionicons name="checkmark" size={20} color="#fff" />
-              <Text style={styles.submitText}>Adicionar Transação</Text>
+              <Text style={styles.submitText}>{isEdit ? 'Salvar Alterações' : 'Adicionar Transação'}</Text>
             </>
           )}
         </TouchableOpacity>
@@ -271,6 +387,7 @@ const styles = StyleSheet.create({
   recurringLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   recurringLabel: { fontSize: 14, fontWeight: '500' },
   recurrenceChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
+  paymentMethodRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
   dateBtn: { flexDirection: 'row', alignItems: 'center', gap: 10, height: 48, borderRadius: 12, paddingHorizontal: 16, borderWidth: 1, marginBottom: 16 },
   dateBtnText: { fontSize: 15, fontWeight: '500' },
   dateConfirm: { alignSelf: 'flex-end', paddingHorizontal: 20, paddingVertical: 8, borderRadius: 10, marginBottom: 12 },

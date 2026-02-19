@@ -1,79 +1,91 @@
-# FinançasPro - App React Native
+# Nexo — Mobile
 
-Aplicativo de controle financeiro pessoal construído com React Native + Expo.
+Aplicativo mobile do **Nexo**, construído com React Native e Expo SDK 54.
 
 ## Tecnologias
 
-- **React Native** + **Expo** (SDK 52)
-- **React Navigation** (Stack + Bottom Tabs)
-- **Zustand** + AsyncStorage (gerenciamento de estado)
-- **TypeScript**
+- **Framework:** React Native 0.81 + Expo SDK 54
+- **Linguagem:** TypeScript
+- **Gerenciamento de estado:** Zustand
+- **Navegação:** React Navigation (Native Stack + Bottom Tabs via PagerView)
+- **Gráficos:** react-native-svg (renderização manual)
+- **Autenticação biométrica:** expo-local-authentication
+- **Notificações push:** expo-notifications
+- **Armazenamento local:** AsyncStorage
 
-## Telas
+## Estrutura do projeto
 
-### Principais (Tab Navigator)
-- **Dashboard** – Saldo total, receitas/despesas do mês, transações recentes
-- **Transações** – Lista com busca e filtro, excluir com long press ou ícone
-- **Contas** – Visualização de todas as contas com saldo consolidado
-- **Mais** – Investimentos, metas, atalhos de gerenciamento, configurações
-
-### Gerenciamento (Stack Navigator)
-- **Gerenciar Contas** – CRUD completo (adicionar, editar, excluir)
-- **Gerenciar Metas** – CRUD com barra de progresso
-- **Gerenciar Categorias** – CRUD com seleção de ícone/tipo (receita/despesa)
-- **Gerenciar Investimentos** – CRUD com dados de retorno
-- **Perfil** – Visualizar e editar dados do usuário
-- **Nova Transação** – Formulário modal para adicionar transação
-- **Transferência** – Transferir entre contas
+```
+src/
+├── components/
+│   ├── BalanceCard.tsx
+│   ├── CategoryLineChart.tsx
+│   ├── ConfirmDialog.tsx
+│   ├── CurrencyInput.tsx
+│   ├── FormModal.tsx
+│   ├── InputField.tsx
+│   ├── MonthlyChart.tsx
+│   ├── PillButton.tsx
+│   ├── ProgressBar.tsx
+│   ├── ScreenHeader.tsx
+│   ├── SpendingChart.tsx
+│   ├── SpendingInsights.tsx
+│   └── StatCard.tsx
+├── lib/
+│   └── finance.ts
+├── navigation/
+│   └── index.tsx
+├── screens/
+│   ├── AccountsScreen.tsx
+│   ├── BiometricLockScreen.tsx
+│   ├── CreditCardDetailScreen.tsx
+│   ├── CreditCardsScreen.tsx
+│   ├── DashboardScreen.tsx
+│   ├── LoginScreen.tsx
+│   ├── ManageCategoriesScreen.tsx
+│   ├── ManageGoalsScreen.tsx
+│   ├── ManageInvestmentsScreen.tsx
+│   ├── ManageRecurrencesScreen.tsx
+│   ├── MoreScreen.tsx
+│   ├── ProfileScreen.tsx
+│   ├── TransactionFormScreen.tsx
+│   ├── TransactionsScreen.tsx
+│   └── TransferScreen.tsx
+├── services/
+│   ├── api.ts
+│   └── notifications.ts
+├── store/
+│   ├── useAuthStore.ts
+│   └── useFinanceStore.ts
+├── theme/
+│   ├── colors.ts
+│   └── ThemeProvider.tsx
+└── types/
+    └── finance.ts
+```
 
 ## Como rodar
 
 ```bash
-cd mobile
 npm install
-npx expo start
+npm start
+npm run android
+npm run ios
 ```
 
-Escaneie o QR Code com o app **Expo Go** no celular ou pressione `a` para Android / `i` para iOS.
+## Funcionalidades
 
-## Estrutura
-
-```
-mobile/
-├── App.tsx                    # Entry point
-├── src/
-│   ├── components/            # Componentes reutilizáveis
-│   │   ├── BalanceCard.tsx
-│   │   ├── ConfirmDialog.tsx
-│   │   ├── FormModal.tsx
-│   │   ├── InputField.tsx
-│   │   ├── PillButton.tsx
-│   │   ├── ProgressBar.tsx
-│   │   ├── ScreenHeader.tsx
-│   │   └── StatCard.tsx
-│   ├── lib/
-│   │   └── finance.ts         # Utilidades (formatação, IDs)
-│   ├── navigation/
-│   │   └── index.tsx           # Navegação (tabs + stack)
-│   ├── screens/
-│   │   ├── LoginScreen.tsx
-│   │   ├── DashboardScreen.tsx
-│   │   ├── TransactionsScreen.tsx
-│   │   ├── AccountsScreen.tsx
-│   │   ├── MoreScreen.tsx
-│   │   ├── ManageAccountsScreen.tsx
-│   │   ├── ManageGoalsScreen.tsx
-│   │   ├── ManageCategoriesScreen.tsx
-│   │   ├── ManageInvestmentsScreen.tsx
-│   │   ├── ProfileScreen.tsx
-│   │   ├── TransactionFormScreen.tsx
-│   │   └── TransferScreen.tsx
-│   ├── store/
-│   │   ├── useAuthStore.ts
-│   │   └── useFinanceStore.ts
-│   ├── theme/
-│   │   ├── colors.ts
-│   │   └── ThemeProvider.tsx
-│   └── types/
-│       └── finance.ts
-```
+- **Dashboard** com saldo consolidado, gráficos de gastos e insights
+- **Contas bancárias** (corrente, poupança, digital, investimentos)
+- **Transações** com categorização, filtros e busca
+- **Cartões de crédito** com controle de faturas, parcelas e limite
+- **Transferências** entre contas
+- **Recorrências** com processamento automático via cron
+- **Metas financeiras** com barra de progresso
+- **Investimentos** com acompanhamento de rendimento
+- **Categorias** personalizáveis com ícones
+- **Modo privacidade** (oculta valores com um toque)
+- **Tema claro/escuro**
+- **Autenticação biométrica** (Face ID / Fingerprint)
+- **Notificações push** para recorrências processadas
+- **Gráficos interativos** com filtros de período (7d, 14d, 1m, 1a, customizado)

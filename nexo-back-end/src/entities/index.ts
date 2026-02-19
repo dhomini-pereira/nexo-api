@@ -32,6 +32,7 @@ export interface Transaction {
   user_id: string;
   account_id: string | null;
   category_id: string | null;
+  credit_card_id: string | null;
   description: string;
   amount: number;
   type: 'income' | 'expense';
@@ -43,6 +44,8 @@ export interface Transaction {
   recurrence_current: number;
   recurrence_group_id: string | null;
   recurrence_paused: boolean;
+  installments: number | null;
+  installment_current: number | null;
   created_at: Date;
 }
 
@@ -78,6 +81,30 @@ export interface Goal {
   updated_at: Date;
 }
 
+export interface CreditCard {
+  id: string;
+  user_id: string;
+  name: string;
+  card_limit: number;
+  closing_day: number;
+  due_day: number;
+  color: string;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface CreditCardInvoice {
+  id: string;
+  credit_card_id: string;
+  user_id: string;
+  reference_month: string;
+  total: number;
+  paid: boolean;
+  paid_at: Date | null;
+  paid_with_account_id: string | null;
+  created_at: Date;
+}
+
 export interface RefreshToken {
   id: string;
   user_id: string;
@@ -86,7 +113,6 @@ export interface RefreshToken {
   created_at: Date;
 }
 
-// DTOs (sem campos internos)
 export interface UserDTO {
   id: string;
   name: string;
@@ -115,6 +141,7 @@ export interface TransactionDTO {
   type: string;
   categoryId: string | null;
   accountId: string | null;
+  creditCardId: string | null;
   date: string;
   recurring: boolean;
   recurrence: string | null;
@@ -123,6 +150,8 @@ export interface TransactionDTO {
   recurrenceCurrent: number;
   recurrenceGroupId: string | null;
   recurrencePaused: boolean;
+  installments: number | null;
+  installmentCurrent: number | null;
 }
 
 export interface InvestmentDTO {
@@ -142,4 +171,25 @@ export interface GoalDTO {
   currentAmount: number;
   deadline: string | null;
   icon: string;
+}
+
+export interface CreditCardDTO {
+  id: string;
+  name: string;
+  limit: number;
+  closingDay: number;
+  dueDay: number;
+  color: string;
+  usedAmount: number;
+  availableLimit: number;
+}
+
+export interface CreditCardInvoiceDTO {
+  id: string;
+  creditCardId: string;
+  referenceMonth: string;
+  total: number;
+  paid: boolean;
+  paidAt: string | null;
+  paidWithAccountId: string | null;
 }

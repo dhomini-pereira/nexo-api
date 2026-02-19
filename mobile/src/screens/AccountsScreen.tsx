@@ -44,7 +44,6 @@ const accountTypes: { value: Account['type']; label: string }[] = [
 
 const PAGE_SIZE = 10;
 
-/** Aceita "1.500,50" ou "1500.50" ou "1500,50" */
 const parseAmount = (text: string): number => {
   if (!text || !text.trim()) return 0;
   let cleaned = text.trim();

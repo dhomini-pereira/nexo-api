@@ -106,7 +106,7 @@ const DashboardScreen = () => {
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Gastos por categoria</Text>
           <StatCard>
-            <CategoryLineChart transactions={monthTx} categories={categories} hidden={privacyMode} privacyMode={privacyMode} />
+            <CategoryLineChart transactions={transactions} categories={categories} hidden={privacyMode} privacyMode={privacyMode} />
           </StatCard>
         </View>
 

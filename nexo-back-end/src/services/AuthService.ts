@@ -55,7 +55,6 @@ export class AuthService {
     const passwordHash = await bcrypt.hash(password, 12);
     const user = await this.userRepo.create(name, email, passwordHash);
 
-    // Cria categorias padrão para o novo usuário
     await this.categoryRepo.createMany(user.id, DEFAULT_CATEGORIES);
 
     const accessToken = this.generateAccessToken(user.id);
@@ -96,7 +95,6 @@ export class AuthService {
       throw { statusCode: 401, message: 'Usuário não encontrado.' };
     }
 
-    // Revoga o token antigo e emite um novo (rotation)
     await this.tokenRepo.deleteByToken(refreshToken);
 
     const newAccessToken = this.generateAccessToken(user.id);

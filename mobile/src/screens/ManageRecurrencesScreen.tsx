@@ -50,19 +50,16 @@ const ManageRecurrencesScreen = () => {
   const [filter, setFilter] = useState<'all' | 'active' | 'paused' | 'finished'>('all');
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
-  // Dialogs
   const [deleteVisible, setDeleteVisible] = useState(false);
   const [toDelete, setToDelete] = useState<Transaction | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [pausing, setPausing] = useState<string | null>(null);
 
-  // Detail modal
   const [detailVisible, setDetailVisible] = useState(false);
   const [selectedRecurrence, setSelectedRecurrence] = useState<Transaction | null>(null);
   const [children, setChildren] = useState<Transaction[]>([]);
   const [loadingChildren, setLoadingChildren] = useState(false);
 
-  // Filtra apenas transações que são recorrentes (parent)
   const recurringTransactions = useMemo(() => {
     const list = transactions.filter((t) => t.recurring || (t.recurrenceCount && t.recurrenceCurrent));
 
@@ -185,7 +182,7 @@ const ManageRecurrencesScreen = () => {
         }
         renderItem={({ item: tx }) => {
           const cat = getCat(tx.categoryId);
-          const acc = getAcc(tx.accountId);
+          const acc = getAcc(tx.accountId ?? '');
           const status = getStatusInfo(tx);
           const parcelaText = tx.recurrenceCount
             ? `${tx.recurrenceCurrent ?? 0}/${tx.recurrenceCount}`
@@ -416,7 +413,6 @@ const styles = StyleSheet.create({
   amount: { fontSize: 14, fontWeight: '700' },
   actions: { flexDirection: 'row', gap: 12 },
 
-  // Detail modal
   modalOverlay: { flex: 1, justifyContent: 'flex-end' },
   modalContent: {
     borderTopLeftRadius: 24,

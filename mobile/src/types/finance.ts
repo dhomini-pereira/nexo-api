@@ -25,7 +25,8 @@ export interface Transaction {
   amount: number;
   type: 'income' | 'expense';
   categoryId: string;
-  accountId: string;
+  accountId: string | null;
+  creditCardId?: string | null;
   date: string;
   recurring: boolean;
   recurrence?: 'daily' | 'weekly' | 'monthly' | 'yearly';
@@ -34,6 +35,8 @@ export interface Transaction {
   recurrenceCurrent?: number;
   recurrenceGroupId?: string | null;
   recurrencePaused?: boolean;
+  installments?: number | null;
+  installmentCurrent?: number | null;
 }
 
 export interface Investment {
@@ -53,4 +56,25 @@ export interface Goal {
   currentAmount: number;
   deadline: string;
   icon: string;
+}
+
+export interface CreditCard {
+  id: string;
+  name: string;
+  limit: number;
+  closingDay: number;
+  dueDay: number;
+  color: string;
+  usedAmount: number;
+  availableLimit: number;
+}
+
+export interface CreditCardInvoice {
+  id: string;
+  creditCardId: string;
+  referenceMonth: string;
+  total: number;
+  paid: boolean;
+  paidAt: string | null;
+  paidWithAccountId: string | null;
 }

@@ -52,7 +52,6 @@ const SpendingChart: React.FC<SpendingChartProps> = ({ transactions, height = 18
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [period, setPeriod] = useState<PeriodKey>('7d');
 
-  // Custom range
   const [customStart, setCustomStart] = useState<Date>(subtractDays(30));
   const [customEnd, setCustomEnd] = useState<Date>(new Date());
   const [showPickerStart, setShowPickerStart] = useState(false);
@@ -67,7 +66,6 @@ const SpendingChart: React.FC<SpendingChartProps> = ({ transactions, height = 18
     setSelectedIndex(null);
   };
 
-  // Calcula intervalo e buckets
   const { startDate, endDate, bucketCount, bucketLabelFn, bucketMatchFn } = useMemo(() => {
     const now = new Date();
     let start: Date;
@@ -153,7 +151,6 @@ const SpendingChart: React.FC<SpendingChartProps> = ({ transactions, height = 18
         return txDate >= toISO(dStart) && txDate <= toISO(dEnd);
       };
     } else {
-      // 1y — 12 buckets (meses)
       start = new Date(now.getFullYear() - 1, now.getMonth() + 1, 1);
       bCount = 12;
       const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
@@ -179,7 +176,6 @@ const SpendingChart: React.FC<SpendingChartProps> = ({ transactions, height = 18
     };
   }, [period, customStart, customEnd]);
 
-  // Filtra e agrupa
   const data = useMemo(() => {
     const expenseTxs = transactions.filter(
       (t) => t.type === 'expense' && t.date >= startDate && t.date <= endDate,
@@ -211,7 +207,6 @@ const SpendingChart: React.FC<SpendingChartProps> = ({ transactions, height = 18
     );
   }
 
-  // Chart layout
   const marginLeft = 20;
   const marginRight = 20;
   const chartWidth = screenWidth - marginLeft - marginRight;

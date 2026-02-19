@@ -3,7 +3,9 @@ import { Pool } from 'pg';
 import { Expo, ExpoPushMessage } from 'expo-server-sdk';
 import { TransactionRepository } from '../repositories/TransactionRepository';
 import { AccountRepository } from '../repositories/AccountRepository';
-import type { TransactionDTO } from '../entities';
+import { CreditCardRepository } from '../repositories/CreditCardRepository';
+import { CreditCardService } from './CreditCardService';
+import type { Transaction, TransactionDTO } from '../entities';
 
 function addRecurrence(dateStr: string, recurrence: string): string {
   const d = new Date(dateStr + 'T00:00:00Z');
@@ -21,6 +23,7 @@ export class TransactionService {
   constructor(
     @inject('TransactionRepository') private txRepo: TransactionRepository,
     @inject('AccountRepository') private accountRepo: AccountRepository,
+    @inject('CreditCardRepository') private cardRepo: CreditCardRepository,
     @inject('DatabasePool') private pool: Pool,
   ) {}
 
@@ -32,6 +35,7 @@ export class TransactionService {
       type: t.type,
       categoryId: t.category_id,
       accountId: t.account_id,
+      creditCardId: t.credit_card_id ?? null,
       date: typeof t.date === 'string' ? t.date : new Date(t.date).toISOString().split('T')[0],
       recurring: t.recurring,
       recurrence: t.recurrence,
@@ -42,6 +46,8 @@ export class TransactionService {
       recurrenceCurrent: Number(t.recurrence_current ?? 0),
       recurrenceGroupId: t.recurrence_group_id ?? null,
       recurrencePaused: t.recurrence_paused ?? false,
+      installments: t.installments != null ? Number(t.installments) : null,
+      installmentCurrent: t.installment_current != null ? Number(t.installment_current) : null,
     };
   }
 
@@ -51,9 +57,11 @@ export class TransactionService {
   }
 
   async create(userId: string, data: {
-    accountId: string; categoryId: string; description: string;
+    accountId?: string | null; categoryId: string; description: string;
     amount: number; type: string; date: string; recurring: boolean; recurrence?: string;
     recurrenceCount?: number | null;
+    creditCardId?: string | null;
+    installments?: number | null;
   }): Promise<TransactionDTO> {
     const client = await this.pool.connect();
     try {
@@ -63,9 +71,12 @@ export class TransactionService {
         ? addRecurrence(data.date, data.recurrence)
         : null;
 
+      const useCreditCard = !!data.creditCardId && data.type === 'expense';
+
       const tx = await this.txRepo.create(userId, {
-        account_id: data.accountId,
+        account_id: useCreditCard ? null : (data.accountId || null),
         category_id: data.categoryId,
+        credit_card_id: useCreditCard ? data.creditCardId! : null,
         description: data.description,
         amount: data.amount,
         type: data.type,
@@ -75,12 +86,32 @@ export class TransactionService {
         next_due_date: nextDueDate,
         recurrence_count: data.recurrenceCount ?? null,
         recurrence_current: data.recurring ? 1 : 0,
-        recurrence_group_id: null, // parent não tem group_id, ele É o grupo
+        recurrence_group_id: null,
+        installments: useCreditCard ? (data.installments ?? null) : null,
+        installment_current: useCreditCard && data.installments ? 1 : null,
       }, client);
 
-      // Atualiza saldo da conta
-      const delta = data.type === 'income' ? data.amount : -data.amount;
-      await this.accountRepo.updateBalance(data.accountId, delta, client);
+      if (useCreditCard) {
+        const card = await this.cardRepo.findById(data.creditCardId!, userId);
+        if (!card) throw { statusCode: 404, message: 'Cartão não encontrado.' };
+
+        if (data.installments && data.installments > 1) {
+          const installmentAmount = Math.round((data.amount / data.installments) * 100) / 100;
+          for (let i = 0; i < data.installments; i++) {
+            const installDate = new Date(data.date + 'T00:00:00Z');
+            installDate.setUTCMonth(installDate.getUTCMonth() + i);
+            const dateStr = installDate.toISOString().split('T')[0];
+            const invoiceMonth = CreditCardService.getInvoiceMonth(dateStr, card.closing_day);
+            await this.cardRepo.upsertInvoice(data.creditCardId!, userId, invoiceMonth, installmentAmount);
+          }
+        } else {
+          const invoiceMonth = CreditCardService.getInvoiceMonth(data.date, card.closing_day);
+          await this.cardRepo.upsertInvoice(data.creditCardId!, userId, invoiceMonth, data.amount);
+        }
+      } else if (data.accountId) {
+        const delta = data.type === 'income' ? data.amount : -data.amount;
+        await this.accountRepo.updateBalance(data.accountId, delta, client);
+      }
 
       await client.query('COMMIT');
       return this.toDTO(tx);
@@ -96,9 +127,12 @@ export class TransactionService {
     description: string; amount: number; type: string;
     categoryId: string; accountId: string; date: string;
     recurring: boolean; recurrence: string | null;
-    nextDueDate: string | null;
+    nextDueDate: string | null; creditCardId: string | null;
+    installments: number | null; installmentCurrent: number | null;
   }>): Promise<TransactionDTO> {
-    // Mapeia camelCase -> snake_case
+    const current = await this.txRepo.findById(id, userId);
+    if (!current) throw { statusCode: 404, message: 'Transação não encontrada.' };
+
     const mapped: any = {};
     if (data.description !== undefined) mapped.description = data.description;
     if (data.amount !== undefined) mapped.amount = data.amount;
@@ -109,10 +143,65 @@ export class TransactionService {
     if (data.recurring !== undefined) mapped.recurring = data.recurring;
     if (data.recurrence !== undefined) mapped.recurrence = data.recurrence;
     if (data.nextDueDate !== undefined) mapped.next_due_date = data.nextDueDate;
+    if (data.creditCardId !== undefined) mapped.credit_card_id = data.creditCardId;
+    if (data.installments !== undefined) mapped.installments = data.installments;
+    if (data.installmentCurrent !== undefined) mapped.installment_current = data.installmentCurrent;
 
-    const tx = await this.txRepo.update(id, userId, mapped);
-    if (!tx) throw { statusCode: 404, message: 'Transação não encontrada.' };
-    return this.toDTO(tx);
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      if (current.account_id) {
+        const oldDelta = current.type === 'income' ? -Number(current.amount) : Number(current.amount);
+        await this.accountRepo.updateBalance(current.account_id, oldDelta, client);
+      }
+
+      const newAccountId = data.accountId !== undefined ? data.accountId : current.account_id;
+      const newType = data.type ?? current.type;
+      const newAmount = data.amount ?? Number(current.amount);
+      const newCreditCardId = data.creditCardId !== undefined ? data.creditCardId : current.credit_card_id;
+
+      if (newAccountId && !newCreditCardId) {
+        const newDelta = newType === 'income' ? newAmount : -newAmount;
+        await this.accountRepo.updateBalance(newAccountId, newDelta, client);
+      }
+
+      if (newCreditCardId && newAccountId) {
+        mapped.account_id = null;
+      }
+
+      const tx = await this.txRepo.update(id, userId, mapped, client);
+      if (!tx) throw { statusCode: 404, message: 'Transação não encontrada.' };
+
+      await client.query('COMMIT');
+      return this.toDTO(tx);
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+
+  private async reverseInvoice(tx: Transaction, client: any): Promise<void> {
+    if (!tx.credit_card_id) return;
+
+    const card = await this.cardRepo.findById(tx.credit_card_id, tx.user_id);
+    if (!card) return;
+
+    const installments = tx.installments ? Number(tx.installments) : 1;
+    const perInstallment = Number(tx.amount) / installments;
+    const dateStr = typeof tx.date === 'string'
+      ? tx.date.split('T')[0]
+      : new Date(tx.date).toISOString().split('T')[0];
+
+    for (let i = 0; i < installments; i++) {
+      const d = new Date(dateStr + 'T00:00:00Z');
+      d.setUTCMonth(d.getUTCMonth() + i);
+      const offsetDate = d.toISOString().split('T')[0];
+      const refMonth = CreditCardService.getInvoiceMonth(offsetDate, card.closing_day);
+      await this.cardRepo.subtractFromInvoice(tx.credit_card_id, refMonth, perInstallment, client);
+    }
   }
 
   async delete(id: string, userId: string): Promise<void> {
@@ -123,14 +212,18 @@ export class TransactionService {
       const tx = await this.txRepo.delete(id, userId);
       if (!tx) throw { statusCode: 404, message: 'Transação não encontrada.' };
 
-      // Reverte saldo
       if (tx.account_id) {
         const delta = tx.type === 'income' ? -Number(tx.amount) : Number(tx.amount);
         await this.accountRepo.updateBalance(tx.account_id, delta, client);
       }
 
+      if (tx.credit_card_id) {
+        await this.reverseInvoice(tx, client);
+      }
+
       await client.query('COMMIT');
     } catch (err) {
+      console.log(err)
       await client.query('ROLLBACK');
       throw err;
     } finally {
@@ -146,7 +239,6 @@ export class TransactionService {
       await this.accountRepo.updateBalance(fromId, -amount, client);
       await this.accountRepo.updateBalance(toId, amount, client);
 
-      // Cria duas transações de registro
       const date = new Date().toISOString().split('T')[0];
       await this.txRepo.create(userId, {
         account_id: fromId,
@@ -177,12 +269,6 @@ export class TransactionService {
     }
   }
 
-  /**
-   * Processa todas as transações recorrentes cujo next_due_date <= hoje.
-   * Para cada uma, cria uma nova transação (igual) na data devida
-   * e avança o next_due_date. Se atingiu o total de parcelas, desativa.
-   * Envia push notifications para os dispositivos do usuário.
-   */
   async processRecurrences(): Promise<{ processed: number }> {
     const today = new Date().toISOString().split('T')[0];
     const dueTxs = await this.txRepo.findDueRecurring(today);
@@ -192,7 +278,6 @@ export class TransactionService {
     let processed = 0;
 
     for (const tx of dueTxs) {
-      // Pula recorrências pausadas
       if (tx.recurrence_paused) continue;
 
       const client = await this.pool.connect();
@@ -204,7 +289,6 @@ export class TransactionService {
           ? tx.next_due_date
           : new Date(tx.next_due_date!).toISOString().split('T')[0];
 
-        // Cria nova transação na data devida, linkando ao pai
         await this.txRepo.create(tx.user_id, {
           account_id: tx.account_id ?? '',
           category_id: tx.category_id ?? '',
@@ -215,25 +299,21 @@ export class TransactionService {
           recurring: false,
           recurrence: null,
           next_due_date: null,
-          recurrence_group_id: tx.id, // link para o pai
+          recurrence_group_id: tx.id,
         }, client);
 
-        // Atualiza saldo da conta
         if (tx.account_id) {
           const delta = tx.type === 'income' ? Number(tx.amount) : -Number(tx.amount);
           await this.accountRepo.updateBalance(tx.account_id, delta, client);
         }
 
-        // Verifica se atingiu o total de parcelas
         const count = tx.recurrence_count != null ? Number(tx.recurrence_count) : null;
         if (count !== null && newCurrent >= count) {
-          // Finalizou todas as parcelas – desativa recorrência
           await client.query(
             'UPDATE transactions SET recurring = false, next_due_date = NULL, recurrence_current = $1 WHERE id = $2',
             [newCurrent, tx.id]
           );
         } else {
-          // Avança o next_due_date e incrementa current
           const nextDue = addRecurrence(dueDate, tx.recurrence!);
           await client.query(
             'UPDATE transactions SET next_due_date = $1, recurrence_current = $2 WHERE id = $3',
@@ -244,7 +324,6 @@ export class TransactionService {
         await client.query('COMMIT');
         processed++;
 
-        // Coleta push tokens do usuário para notificação
         const { rows: tokenRows } = await this.pool.query(
           'SELECT token FROM push_tokens WHERE user_id = $1', [tx.user_id]
         );
@@ -272,7 +351,6 @@ export class TransactionService {
       }
     }
 
-    // Envia notificações em batch
     if (notifications.length > 0) {
       try {
         const chunks = expo.chunkPushNotifications(notifications);
@@ -287,26 +365,22 @@ export class TransactionService {
     return { processed };
   }
 
-  /** Busca transações filhas geradas por uma recorrência */
   async getRecurrenceChildren(parentId: string, userId: string): Promise<TransactionDTO[]> {
     const rows = await this.txRepo.findByGroupId(parentId, userId);
     return rows.map(this.toDTO);
   }
 
-  /** Pausa/despausa uma recorrência */
   async toggleRecurrencePause(id: string, userId: string, paused: boolean): Promise<TransactionDTO> {
     const tx = await this.txRepo.update(id, userId, { recurrence_paused: paused });
     if (!tx) throw { statusCode: 404, message: 'Transação não encontrada.' };
     return this.toDTO(tx);
   }
 
-  /** Exclui uma recorrência e todo o histórico de transações filhas */
   async deleteRecurrenceWithHistory(id: string, userId: string): Promise<void> {
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
 
-      // Exclui filhas e reverte saldos
       const { rows: children } = await client.query(
         'DELETE FROM transactions WHERE recurrence_group_id = $1 AND user_id = $2 RETURNING *',
         [id, userId]
@@ -316,17 +390,24 @@ export class TransactionService {
           const delta = child.type === 'income' ? -Number(child.amount) : Number(child.amount);
           await this.accountRepo.updateBalance(child.account_id, delta, client);
         }
+        if (child.credit_card_id) {
+          await this.reverseInvoice(child, client);
+        }
       }
 
-      // Exclui a transação pai e reverte saldo da primeira parcela
       const { rows: parentRows } = await client.query(
         'DELETE FROM transactions WHERE id = $1 AND user_id = $2 RETURNING *',
         [id, userId]
       );
-      if (parentRows[0]?.account_id) {
-        const p = parentRows[0];
-        const delta = p.type === 'income' ? -Number(p.amount) : Number(p.amount);
-        await this.accountRepo.updateBalance(p.account_id, delta, client);
+      const p = parentRows[0];
+      if (p) {
+        if (p.account_id) {
+          const delta = p.type === 'income' ? -Number(p.amount) : Number(p.amount);
+          await this.accountRepo.updateBalance(p.account_id, delta, client);
+        }
+        if (p.credit_card_id) {
+          await this.reverseInvoice(p, client);
+        }
       }
 
       await client.query('COMMIT');

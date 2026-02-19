@@ -5,7 +5,7 @@ import * as LocalAuthentication from 'expo-local-authentication';
 import { authApi, saveTokens, clearTokens, loadTokens } from '@/services/api';
 import type { User } from '@/types/finance';
 
-const SESSION_DURATION_MS = 30 * 24 * 60 * 60 * 1000; // 30 dias
+const SESSION_DURATION_MS = 30 * 24 * 60 * 60 * 1000;
 
 interface AuthState {
   user: User | null;
@@ -15,7 +15,7 @@ interface AuthState {
   biometricEnabled: boolean;
   biometricLocked: boolean;
   loginTimestamp: number | null;
-  lastBackgroundTs: number | null; // quando foi pro background
+  lastBackgroundTs: number | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<boolean>;
   register: (name: string, email: string, password: string) => Promise<boolean>;
@@ -154,14 +154,12 @@ export const useAuthStore = create<AuthState>()(
         return true;
       },
 
-      // Chamado quando o app vai pro background – bloqueia imediatamente
       lockApp: () => {
         if (get().biometricEnabled && get().isAuthenticated) {
           set({ biometricLocked: true });
         }
       },
 
-      // Chamado quando o app volta do background (noop – bloqueio já ocorreu no lockApp)
       handleReturnFromBackground: () => {},
 
       restoreSession: async () => {

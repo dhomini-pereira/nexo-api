@@ -170,3 +170,69 @@ CREATE TABLE IF NOT EXISTS push_tokens (
 );
 
 CREATE INDEX IF NOT EXISTS idx_push_tokens_user ON push_tokens(user_id);
+
+-- Credit Cards
+CREATE TABLE IF NOT EXISTS credit_cards (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name VARCHAR(255) NOT NULL,
+  card_limit DECIMAL(15,2) NOT NULL DEFAULT 0,
+  closing_day INT NOT NULL CHECK (closing_day BETWEEN 1 AND 31),
+  due_day INT NOT NULL CHECK (due_day BETWEEN 1 AND 31),
+  color VARCHAR(20) DEFAULT '#8b5cf6',
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_credit_cards_user ON credit_cards(user_id);
+
+-- Coluna para vincular transação a um cartão de crédito (opcional)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'transactions' AND column_name = 'credit_card_id'
+  ) THEN
+    ALTER TABLE transactions ADD COLUMN credit_card_id UUID REFERENCES credit_cards(id) ON DELETE SET NULL;
+  END IF;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_transactions_credit_card ON transactions(credit_card_id) WHERE credit_card_id IS NOT NULL;
+
+-- Coluna para indicar número da parcela no cartão (ex: 3/12)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'transactions' AND column_name = 'installments'
+  ) THEN
+    ALTER TABLE transactions ADD COLUMN installments INT;
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'transactions' AND column_name = 'installment_current'
+  ) THEN
+    ALTER TABLE transactions ADD COLUMN installment_current INT;
+  END IF;
+END $$;
+
+-- Invoices (faturas de cartão de crédito)
+CREATE TABLE IF NOT EXISTS credit_card_invoices (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  credit_card_id UUID NOT NULL REFERENCES credit_cards(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  reference_month VARCHAR(7) NOT NULL, -- 'YYYY-MM'
+  total DECIMAL(15,2) DEFAULT 0,
+  paid BOOLEAN DEFAULT false,
+  paid_at TIMESTAMPTZ,
+  paid_with_account_id UUID REFERENCES accounts(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(credit_card_id, reference_month)
+);
+
+CREATE INDEX IF NOT EXISTS idx_invoices_card ON credit_card_invoices(credit_card_id);
+CREATE INDEX IF NOT EXISTS idx_invoices_user ON credit_card_invoices(user_id);

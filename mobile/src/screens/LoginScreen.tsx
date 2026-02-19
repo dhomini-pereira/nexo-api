@@ -26,7 +26,6 @@ const LoginScreen = () => {
   const [loading, setLoading] = useState(false);
   const [biometricAvailable, setBiometricAvailable] = useState(false);
 
-  // Indica que tem sessão salva com biometria (pode desbloquear)
   const canUseBiometric = biometricEnabled && !!user && !!loginTimestamp;
 
   useEffect(() => {

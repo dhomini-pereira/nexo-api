@@ -151,6 +151,13 @@ const MoreScreen = () => {
             iconColor={colors.warning}
           />
           <MenuItem
+            icon="card-outline"
+            label="Cartões de Crédito"
+            onPress={() => navigation.navigate('CreditCards')}
+            colors={colors}
+            iconColor="#8b5cf6"
+          />
+          <MenuItem
             icon="pricetag-outline"
             label="Gerenciar Categorias"
             onPress={() => navigation.navigate('ManageCategories')}

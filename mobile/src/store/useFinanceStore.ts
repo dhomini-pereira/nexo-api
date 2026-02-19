@@ -6,6 +6,7 @@ import {
   investmentsApi,
   goalsApi,
   transfersApi,
+  creditCardsApi,
 } from '@/services/api';
 import type {
   Account,
@@ -13,6 +14,8 @@ import type {
   Transaction,
   Investment,
   Goal,
+  CreditCard,
+  CreditCardInvoice,
 } from '@/types/finance';
 
 interface FinanceState {
@@ -21,45 +24,45 @@ interface FinanceState {
   categories: Category[];
   investments: Investment[];
   goals: Goal[];
+  creditCards: CreditCard[];
   loading: boolean;
-  actionLoading: boolean; // loading para ações individuais (add/edit/delete)
+  actionLoading: boolean;
   error: string | null;
 
-  // Fetch all from API
   fetchAll: () => Promise<void>;
   reset: () => void;
 
-  // Accounts
   addAccount: (data: Omit<Account, 'id'>) => Promise<void>;
   updateAccount: (id: string, data: Partial<Account>) => Promise<void>;
   deleteAccount: (id: string) => Promise<void>;
 
-  // Transactions
   addTransaction: (data: Omit<Transaction, 'id'>) => Promise<void>;
+  updateTransaction: (id: string, data: Partial<Transaction>) => Promise<void>;
   deleteTransaction: (id: string) => Promise<void>;
 
-  // Recurrence management
   getRecurrenceChildren: (parentId: string) => Promise<Transaction[]>;
   toggleRecurrencePause: (id: string, paused: boolean) => Promise<void>;
   deleteRecurrenceWithHistory: (id: string) => Promise<void>;
 
-  // Transfer
   transfer: (fromId: string, toId: string, amount: number, description?: string) => Promise<void>;
 
-  // Categories
   addCategory: (data: Omit<Category, 'id'>) => Promise<void>;
   updateCategory: (id: string, data: Partial<Category>) => Promise<void>;
   deleteCategory: (id: string) => Promise<void>;
 
-  // Investments
   addInvestment: (data: Omit<Investment, 'id'>) => Promise<void>;
   updateInvestment: (id: string, data: Partial<Investment>) => Promise<void>;
   deleteInvestment: (id: string) => Promise<void>;
 
-  // Goals
   addGoal: (data: Omit<Goal, 'id'>) => Promise<void>;
   updateGoal: (id: string, data: Partial<Goal>) => Promise<void>;
   deleteGoal: (id: string) => Promise<void>;
+
+  addCreditCard: (data: Omit<CreditCard, 'id' | 'usedAmount' | 'availableLimit'>) => Promise<void>;
+  updateCreditCard: (id: string, data: Partial<CreditCard>) => Promise<void>;
+  deleteCreditCard: (id: string) => Promise<void>;
+  getInvoices: (cardId: string) => Promise<CreditCardInvoice[]>;
+  payInvoice: (invoiceId: string, accountId: string) => Promise<void>;
 }
 
 const initialState = {
@@ -68,6 +71,7 @@ const initialState = {
   categories: [] as Category[],
   investments: [] as Investment[],
   goals: [] as Goal[],
+  creditCards: [] as CreditCard[],
   loading: false,
   actionLoading: false,
   error: null as string | null,
@@ -79,14 +83,15 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
   fetchAll: async () => {
     try {
       set({ loading: true, error: null });
-      const [accounts, transactions, categories, investments, goals] = await Promise.all([
+      const [accounts, transactions, categories, investments, goals, creditCards] = await Promise.all([
         accountsApi.getAll(),
         transactionsApi.getAll(),
         categoriesApi.getAll(),
         investmentsApi.getAll(),
         goalsApi.getAll(),
+        creditCardsApi.getAll(),
       ]);
-      set({ accounts, transactions, categories, investments, goals, loading: false });
+      set({ accounts, transactions, categories, investments, goals, creditCards, loading: false });
     } catch (err: any) {
       set({ loading: false, error: err.message || 'Erro ao carregar dados.' });
     }
@@ -94,7 +99,6 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
 
   reset: () => set(initialState),
 
-  // ========== ACCOUNTS ==========
   addAccount: async (data) => {
     try {
       set({ actionLoading: true });
@@ -128,13 +132,11 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
     }
   },
 
-  // ========== TRANSACTIONS ==========
   addTransaction: async (data) => {
     try {
       set({ actionLoading: true });
       const tx = await transactionsApi.create(data);
       set({ transactions: [...get().transactions, tx], actionLoading: false });
-      // Atualiza o saldo da conta localmente (o back-end já fez o cálculo)
       await get().fetchAll();
     } catch (err: any) {
       set({ error: err.message, actionLoading: false });
@@ -147,7 +149,6 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
       set({ actionLoading: true });
       await transactionsApi.delete(id);
       set({ transactions: get().transactions.filter((t) => t.id !== id), actionLoading: false });
-      // Atualiza saldos
       await get().fetchAll();
     } catch (err: any) {
       set({ error: err.message, actionLoading: false });
@@ -155,7 +156,6 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
     }
   },
 
-  // ========== TRANSFER ==========
   transfer: async (fromId, toId, amount, description) => {
     try {
       set({ actionLoading: true });
@@ -168,7 +168,6 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
     }
   },
 
-  // ========== RECURRENCE MANAGEMENT ==========
   getRecurrenceChildren: async (parentId) => {
     const children = await transactionsApi.getChildren(parentId);
     return children;
@@ -192,7 +191,6 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
     try {
       set({ actionLoading: true });
       await transactionsApi.deleteRecurrence(id);
-      // Remove parent + children do state local
       set({
         transactions: get().transactions.filter(
           (t) => t.id !== id && t.recurrenceGroupId !== id,
@@ -206,7 +204,6 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
     }
   },
 
-  // ========== CATEGORIES ==========
   addCategory: async (data) => {
     try {
       set({ actionLoading: true });
@@ -240,7 +237,6 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
     }
   },
 
-  // ========== INVESTMENTS ==========
   addInvestment: async (data) => {
     try {
       set({ actionLoading: true });
@@ -274,7 +270,6 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
     }
   },
 
-  // ========== GOALS ==========
   addGoal: async (data) => {
     try {
       set({ actionLoading: true });
@@ -302,6 +297,75 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
       set({ actionLoading: true });
       await goalsApi.delete(id);
       set({ goals: get().goals.filter((g) => g.id !== id), actionLoading: false });
+    } catch (err: any) {
+      set({ error: err.message, actionLoading: false });
+      throw err;
+    }
+  },
+
+  addCreditCard: async (data) => {
+    try {
+      set({ actionLoading: true });
+      const card = await creditCardsApi.create(data);
+      set({ creditCards: [...get().creditCards, card], actionLoading: false });
+    } catch (err: any) {
+      set({ error: err.message, actionLoading: false });
+      throw err;
+    }
+  },
+
+  updateCreditCard: async (id, data) => {
+    try {
+      set({ actionLoading: true });
+      const updated = await creditCardsApi.update(id, data);
+      set({ creditCards: get().creditCards.map((c) => (c.id === id ? updated : c)), actionLoading: false });
+    } catch (err: any) {
+      set({ error: err.message, actionLoading: false });
+      throw err;
+    }
+  },
+
+  deleteCreditCard: async (id) => {
+    try {
+      set({ actionLoading: true });
+      await creditCardsApi.delete(id);
+      set({ creditCards: get().creditCards.filter((c) => c.id !== id), actionLoading: false });
+    } catch (err: any) {
+      set({ error: err.message, actionLoading: false });
+      throw err;
+    }
+  },
+
+  getInvoices: async (cardId) => {
+    return await creditCardsApi.getInvoices(cardId);
+  },
+
+  payInvoice: async (invoiceId, accountId) => {
+    try {
+      set({ actionLoading: true });
+      await creditCardsApi.payInvoice(invoiceId, accountId);
+      // Refetch all to update account balances and credit card used amounts
+      const [accounts, creditCards] = await Promise.all([
+        accountsApi.getAll(),
+        creditCardsApi.getAll(),
+      ]);
+      set({ accounts, creditCards, actionLoading: false });
+    } catch (err: any) {
+      set({ error: err.message, actionLoading: false });
+      throw err;
+    }
+  },
+
+  updateTransaction: async (id, data) => {
+    try {
+      set({ actionLoading: true });
+      const updated = await transactionsApi.update(id, data);
+      set({ transactions: get().transactions.map((t) => (t.id === id ? updated : t)), actionLoading: false });
+      const [accounts, creditCards] = await Promise.all([
+        accountsApi.getAll(),
+        creditCardsApi.getAll(),
+      ]);
+      set({ accounts, creditCards });
     } catch (err: any) {
       set({ error: err.message, actionLoading: false });
       throw err;

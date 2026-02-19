@@ -1,11 +1,10 @@
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// Em emulador Android use 10.0.2.2, iOS simulator usa localhost
 const DEV_HOST = Platform.OS === 'android' ? '10.0.2.2' : 'localhost';
 const BASE_URL = __DEV__
   ? `http://${DEV_HOST}:3333`
-  : 'https://nexo-back-end.vercel.app'; // trocar pela URL de produção
+  : 'https://nexo-back-end.vercel.app';
 
 const TOKEN_KEY = 'finance-tokens';
 
@@ -74,7 +73,6 @@ async function getValidToken(): Promise<string | null> {
   return current.accessToken;
 }
 
-// Faz request com retry automático em caso de 401
 async function request<T = any>(
   path: string,
   options: RequestInit = {},
@@ -84,7 +82,6 @@ async function request<T = any>(
   const headers: Record<string, string> = {
     ...(options.headers as Record<string, string> || {}),
   };
-  // Só envia Content-Type: application/json quando há body
   if (options.body) {
     headers['Content-Type'] = 'application/json';
   }
@@ -94,7 +91,6 @@ async function request<T = any>(
 
   let res = await fetch(`${BASE_URL}${path}`, { ...options, headers });
 
-  // Se 401, tenta refresh e retenta
   if (res.status === 401 && token) {
     if (!refreshPromise) {
       refreshPromise = refreshAuth();
@@ -128,7 +124,6 @@ export class ApiError extends Error {
   }
 }
 
-// ===== AUTH =====
 export const authApi = {
   register: (name: string, email: string, password: string) =>
     request<{ user: any; accessToken: string; refreshToken: string }>('/auth/register', {
@@ -160,7 +155,6 @@ export const authApi = {
     }),
 };
 
-// ===== ACCOUNTS =====
 export const accountsApi = {
   getAll: () => request<any[]>('/accounts'),
   create: (data: { name: string; type: string; balance: number; color: string }) =>
@@ -171,7 +165,6 @@ export const accountsApi = {
     request(`/accounts/${id}`, { method: 'DELETE' }),
 };
 
-// ===== TRANSACTIONS =====
 export const transactionsApi = {
   getAll: () => request<any[]>('/transactions'),
   create: (data: any) =>
@@ -188,13 +181,11 @@ export const transactionsApi = {
     request(`/transactions/${id}/recurrence`, { method: 'DELETE' }),
 };
 
-// ===== TRANSFERS =====
 export const transfersApi = {
   create: (data: { fromAccountId: string; toAccountId: string; amount: number; description?: string }) =>
     request('/transfers', { method: 'POST', body: JSON.stringify(data) }),
 };
 
-// ===== CATEGORIES =====
 export const categoriesApi = {
   getAll: () => request<any[]>('/categories'),
   create: (data: { name: string; icon: string; type: string }) =>
@@ -205,7 +196,6 @@ export const categoriesApi = {
     request(`/categories/${id}`, { method: 'DELETE' }),
 };
 
-// ===== INVESTMENTS =====
 export const investmentsApi = {
   getAll: () => request<any[]>('/investments'),
   create: (data: any) =>
@@ -216,7 +206,6 @@ export const investmentsApi = {
     request(`/investments/${id}`, { method: 'DELETE' }),
 };
 
-// ===== GOALS =====
 export const goalsApi = {
   getAll: () => request<any[]>('/goals'),
   create: (data: any) =>
@@ -227,10 +216,25 @@ export const goalsApi = {
     request(`/goals/${id}`, { method: 'DELETE' }),
 };
 
-// ===== PUSH TOKENS =====
 export const pushTokenApi = {
   register: (token: string) =>
     request('/push-token', { method: 'POST', body: JSON.stringify({ token }) }),
   remove: (token: string) =>
     request('/push-token', { method: 'DELETE', body: JSON.stringify({ token }) }),
+};
+
+export const creditCardsApi = {
+  getAll: () => request<any[]>('/credit-cards'),
+  create: (data: any) =>
+    request<any>('/credit-cards', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: string, data: any) =>
+    request<any>(`/credit-cards/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  delete: (id: string) =>
+    request(`/credit-cards/${id}`, { method: 'DELETE' }),
+  getInvoices: (cardId: string) =>
+    request<any[]>(`/credit-cards/${cardId}/invoices`),
+  payInvoice: (invoiceId: string, accountId: string) =>
+    request<any>(`/credit-cards/invoices/${invoiceId}/pay`, {
+      method: 'POST', body: JSON.stringify({ accountId }),
+    }),
 };

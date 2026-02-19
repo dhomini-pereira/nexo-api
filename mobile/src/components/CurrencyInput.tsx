@@ -5,9 +5,7 @@ import { formatCurrencyInput } from '@/lib/finance';
 
 interface CurrencyInputProps extends Omit<TextInputProps, 'value' | 'onChangeText'> {
   label: string;
-  /** Valor bruto formatado (ex: "R$ 1.234,56") */
   value: string;
-  /** Recebe o valor já formatado */
   onChangeText: (formatted: string) => void;
 }
 

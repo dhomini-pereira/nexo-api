@@ -27,7 +27,7 @@ const PAGE_SIZE = 10;
 const TransactionsScreen = () => {
   const { colors } = useTheme();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const { transactions, categories, deleteTransaction } = useFinanceStore();
+  const { transactions, categories, creditCards, deleteTransaction } = useFinanceStore();
   const { privacyMode } = useAuthStore();
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<'all' | 'income' | 'expense'>('all');
@@ -38,6 +38,7 @@ const TransactionsScreen = () => {
 
   const mv = (v: number) => maskValue(privacyMode, formatCurrency(v));
   const getCat = (id: string) => categories.find((c) => c.id === id);
+  const getCard = (id: string | null | undefined) => id ? creditCards.find((c) => c.id === id) : null;
 
   const filtered = useMemo(() => {
     let list = [...transactions].sort((a, b) => b.date.localeCompare(a.date));
@@ -69,7 +70,6 @@ const TransactionsScreen = () => {
     try {
       await deleteTransaction(toDelete.id);
     } catch {
-      // silently handle
     } finally {
       setDeletingId(null);
       setToDelete(null);
@@ -122,8 +122,13 @@ const TransactionsScreen = () => {
         }
         renderItem={({ item: tx }) => {
           const cat = getCat(tx.categoryId);
+          const card = getCard(tx.creditCardId);
+          const installmentLabel = tx.installments && tx.installmentCurrent
+            ? ` · ${tx.installmentCurrent}/${tx.installments}x`
+            : '';
           return (
             <TouchableOpacity
+              onPress={() => navigation.navigate('TransactionForm', { transactionId: tx.id })}
               onLongPress={() => handleDelete(tx.id, tx.description)}
               activeOpacity={0.7}
             >
@@ -135,6 +140,8 @@ const TransactionsScreen = () => {
                       <Text style={[styles.txDesc, { color: colors.text }]}>{tx.description}</Text>
                       <Text style={[styles.txMeta, { color: colors.textMuted }]}>
                         {cat?.name} · {formatDateShort(tx.date)}
+                        {card ? ` · 💳 ${card.name}` : ''}
+                        {installmentLabel}
                         {tx.recurring ? ' · 🔄' : ''}
                       </Text>
                     </View>
@@ -149,16 +156,24 @@ const TransactionsScreen = () => {
                       {tx.type === 'income' ? '+' : '-'}
                       {mv(tx.amount)}
                     </Text>
-                    {deletingId === tx.id ? (
-                      <ActivityIndicator size="small" color={colors.destructive} />
-                    ) : (
+                    <View style={styles.txActions}>
                       <TouchableOpacity
-                        onPress={() => handleDelete(tx.id, tx.description)}
+                        onPress={() => navigation.navigate('TransactionForm', { transactionId: tx.id })}
                         hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                       >
-                        <Ionicons name="trash-outline" size={16} color={colors.destructive} />
+                        <Ionicons name="create-outline" size={16} color={colors.textSecondary} />
                       </TouchableOpacity>
-                    )}
+                      {deletingId === tx.id ? (
+                        <ActivityIndicator size="small" color={colors.destructive} />
+                      ) : (
+                        <TouchableOpacity
+                          onPress={() => handleDelete(tx.id, tx.description)}
+                          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                        >
+                          <Ionicons name="trash-outline" size={16} color={colors.destructive} />
+                        </TouchableOpacity>
+                      )}
+                    </View>
                   </View>
                 </View>
               </StatCard>
@@ -251,6 +266,11 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   txRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  txActions: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,

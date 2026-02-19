@@ -56,9 +56,6 @@ export async function transactionRoutes(app: FastifyInstance) {
     }
   });
 
-  // ========== RECURRENCE MANAGEMENT ==========
-
-  /** Lista as transações filhas de uma recorrência */
   app.get('/transactions/:id/children', async (request, reply) => {
     const { id } = request.params as any;
     try {
@@ -69,7 +66,6 @@ export async function transactionRoutes(app: FastifyInstance) {
     }
   });
 
-  /** Pausa/despausa uma recorrência */
   app.put('/transactions/:id/pause', async (request, reply) => {
     const { id } = request.params as any;
     const { paused } = request.body as any;
@@ -81,7 +77,6 @@ export async function transactionRoutes(app: FastifyInstance) {
     }
   });
 
-  /** Exclui uma recorrência e todo o seu histórico */
   app.delete('/transactions/:id/recurrence', async (request, reply) => {
     const { id } = request.params as any;
     try {

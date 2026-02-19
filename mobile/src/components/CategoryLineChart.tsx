@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import { View, Text, StyleSheet, Dimensions, Pressable, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Dimensions, Pressable, ScrollView, TouchableOpacity, Platform } from 'react-native';
 import Svg, {
   Path,
   Defs,
@@ -10,6 +10,8 @@ import Svg, {
   G,
   ClipPath,
 } from 'react-native-svg';
+import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/theme/ThemeProvider';
 import type { Transaction, Category } from '@/types/finance';
 import { formatCurrency, maskValue } from '@/lib/finance';
@@ -27,11 +29,24 @@ interface CategoryLineChartProps {
   privacyMode?: boolean;
 }
 
-/**
- * Gráfico de linhas onde cada linha representa uma categoria de despesa.
- * Eixo X = últimos 7 dias do período fornecido (uso: mês corrente).
- * Eixo Y = valor acumulado por categoria.
- */
+type PeriodKey = '7d' | '14d' | '1m' | '1y' | 'custom';
+
+const PERIOD_OPTIONS: { key: PeriodKey; label: string }[] = [
+  { key: '7d', label: '7 dias' },
+  { key: '14d', label: '14 dias' },
+  { key: '1m', label: '1 mês' },
+  { key: '1y', label: '1 ano' },
+  { key: 'custom', label: 'Personalizado' },
+];
+
+const toISO = (d: Date): string => d.toISOString().split('T')[0];
+
+const subtractDays = (n: number): Date => {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return d;
+};
+
 const CategoryLineChart: React.FC<CategoryLineChartProps> = ({
   transactions,
   categories,
@@ -42,11 +57,44 @@ const CategoryLineChart: React.FC<CategoryLineChartProps> = ({
   const { colors } = useTheme();
   const screenWidth = Dimensions.get('window').width - 80;
   const [selectedCatIdx, setSelectedCatIdx] = useState<number | null>(null);
+  const [period, setPeriod] = useState<PeriodKey>('1m');
+  const [customStart, setCustomStart] = useState<Date>(subtractDays(30));
+  const [customEnd, setCustomEnd] = useState<Date>(new Date());
+  const [showPickerStart, setShowPickerStart] = useState(false);
+  const [showPickerEnd, setShowPickerEnd] = useState(false);
 
-  // Categorias de despesa que possuem transações
+  const changePeriod = (key: PeriodKey) => {
+    setPeriod(key);
+    setSelectedCatIdx(null);
+  };
+
+  const { startDate, endDate } = useMemo(() => {
+    const now = new Date();
+    let start: Date;
+    let end: Date = now;
+    if (period === 'custom') {
+      start = customStart;
+      end = customEnd;
+    } else if (period === '7d') {
+      start = subtractDays(6);
+    } else if (period === '14d') {
+      start = subtractDays(13);
+    } else if (period === '1m') {
+      start = subtractDays(29);
+    } else {
+      start = new Date(now.getFullYear() - 1, now.getMonth() + 1, 1);
+    }
+    return { startDate: toISO(start), endDate: toISO(end) };
+  }, [period, customStart, customEnd]);
+
+  const filteredTransactions = useMemo(
+    () => transactions.filter((t) => t.date >= startDate && t.date <= endDate),
+    [transactions, startDate, endDate],
+  );
+
   const expenseTransactions = useMemo(
-    () => transactions.filter((t) => t.type === 'expense'),
-    [transactions],
+    () => filteredTransactions.filter((t) => t.type === 'expense'),
+    [filteredTransactions],
   );
 
   const catTotals = useMemo(() => {
@@ -62,11 +110,10 @@ const CategoryLineChart: React.FC<CategoryLineChartProps> = ({
       categories
         .filter((c) => c.type === 'expense' && catTotals.has(c.id))
         .sort((a, b) => (catTotals.get(b.id) ?? 0) - (catTotals.get(a.id) ?? 0))
-        .slice(0, 6), // Máximo 6 linhas para legibilidade
+        .slice(0, 6),
     [categories, catTotals],
   );
 
-  // Gera os últimos 7 "buckets" de datas (dias) presentes nas transações
   const sortedDates = useMemo(() => {
     const dateSet = new Set<string>();
     for (const tx of expenseTransactions) dateSet.add(tx.date);
@@ -76,6 +123,19 @@ const CategoryLineChart: React.FC<CategoryLineChartProps> = ({
   const toggleCat = useCallback((idx: number) => {
     setSelectedCatIdx((prev) => (prev === idx ? null : idx));
   }, []);
+
+  const handleDateChangeStart = (_e: DateTimePickerEvent, d?: Date) => {
+    if (Platform.OS === 'android') setShowPickerStart(false);
+    if (d) { setCustomStart(d); setSelectedCatIdx(null); }
+  };
+
+  const handleDateChangeEnd = (_e: DateTimePickerEvent, d?: Date) => {
+    if (Platform.OS === 'android') setShowPickerEnd(false);
+    if (d) { setCustomEnd(d); setSelectedCatIdx(null); }
+  };
+
+  const formatDateBtn = (d: Date) =>
+    `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
 
   if (hidden) {
     return (
@@ -93,7 +153,6 @@ const CategoryLineChart: React.FC<CategoryLineChartProps> = ({
     );
   }
 
-  // Layout
   const marginLeft = 20;
   const marginRight = 20;
   const chartWidth = screenWidth - marginLeft - marginRight;
@@ -104,7 +163,6 @@ const CategoryLineChart: React.FC<CategoryLineChartProps> = ({
   const chartHeight = svgHeight - paddingTop - paddingBottom;
   const stepX = sortedDates.length > 1 ? chartWidth / (sortedDates.length - 1) : 0;
 
-  // Dados: Para cada categoria, acumula gastos por data
   type SeriesPoint = { x: number; y: number; value: number };
   const series: { cat: Category; color: string; points: SeriesPoint[] }[] = [];
   let globalMax = 1;
@@ -124,7 +182,6 @@ const CategoryLineChart: React.FC<CategoryLineChartProps> = ({
     series.push({ cat, color: LINE_COLORS[ci % LINE_COLORS.length], points: pts });
   }
 
-  // Normaliza y
   for (const s of series) {
     for (const p of s.points) {
       p.y = paddingTop + chartHeight - (p.value / globalMax) * chartHeight;
@@ -157,6 +214,64 @@ const CategoryLineChart: React.FC<CategoryLineChartProps> = ({
 
   return (
     <View>
+      <View style={styles.pillRow}>
+        {PERIOD_OPTIONS.map((opt) => (
+          <Pressable
+            key={opt.key}
+            onPress={() => changePeriod(opt.key)}
+            style={[
+              styles.pill,
+              { backgroundColor: period === opt.key ? colors.primary : colors.mutedBg },
+            ]}
+          >
+            <Text
+              style={[
+                styles.pillText,
+                { color: period === opt.key ? '#fff' : colors.textSecondary },
+              ]}
+            >
+              {opt.label}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+
+      {period === 'custom' && (
+        <View style={styles.customRow}>
+          <TouchableOpacity
+            style={[styles.dateBtn, { backgroundColor: colors.inputBg, borderColor: colors.inputBorder }]}
+            onPress={() => setShowPickerStart(true)}
+          >
+            <Ionicons name="calendar-outline" size={14} color={colors.textSecondary} />
+            <Text style={[styles.dateBtnText, { color: colors.text }]}>{formatDateBtn(customStart)}</Text>
+          </TouchableOpacity>
+          <Text style={[styles.dateTo, { color: colors.textMuted }]}>até</Text>
+          <TouchableOpacity
+            style={[styles.dateBtn, { backgroundColor: colors.inputBg, borderColor: colors.inputBorder }]}
+            onPress={() => setShowPickerEnd(true)}
+          >
+            <Ionicons name="calendar-outline" size={14} color={colors.textSecondary} />
+            <Text style={[styles.dateBtnText, { color: colors.text }]}>{formatDateBtn(customEnd)}</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+      {showPickerStart && (
+        <DateTimePicker value={customStart} mode="date" display={Platform.OS === 'ios' ? 'spinner' : 'default'} onChange={handleDateChangeStart} locale="pt-BR" />
+      )}
+      {showPickerStart && Platform.OS === 'ios' && (
+        <TouchableOpacity style={[styles.dateConfirm, { backgroundColor: colors.primary }]} onPress={() => setShowPickerStart(false)}>
+          <Text style={styles.dateConfirmText}>Confirmar</Text>
+        </TouchableOpacity>
+      )}
+      {showPickerEnd && (
+        <DateTimePicker value={customEnd} mode="date" display={Platform.OS === 'ios' ? 'spinner' : 'default'} onChange={handleDateChangeEnd} locale="pt-BR" />
+      )}
+      {showPickerEnd && Platform.OS === 'ios' && (
+        <TouchableOpacity style={[styles.dateConfirm, { backgroundColor: colors.primary }]} onPress={() => setShowPickerEnd(false)}>
+          <Text style={styles.dateConfirmText}>Confirmar</Text>
+        </TouchableOpacity>
+      )}
+
       <View style={{ height: svgHeight, position: 'relative' }}>
         <Svg width={screenWidth} height={svgHeight}>
           <Defs>
@@ -286,6 +401,47 @@ const CategoryLineChart: React.FC<CategoryLineChartProps> = ({
 const styles = StyleSheet.create({
   empty: { alignItems: 'center', justifyContent: 'center' },
   emptyText: { fontSize: 14 },
+  pillRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 12,
+  },
+  pill: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 10,
+  },
+  pillText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  customRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  dateBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    height: 38,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    borderWidth: 1,
+  },
+  dateBtnText: { fontSize: 13, fontWeight: '500' },
+  dateTo: { fontSize: 12 },
+  dateConfirm: {
+    alignSelf: 'flex-end',
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    borderRadius: 10,
+    marginBottom: 8,
+  },
+  dateConfirmText: { color: '#fff', fontSize: 14, fontWeight: '600' },
   legend: { marginTop: 4, paddingHorizontal: 4 },
   legendItem: {
     flexDirection: 'row',

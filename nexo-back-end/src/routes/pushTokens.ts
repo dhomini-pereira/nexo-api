@@ -7,7 +7,6 @@ export async function pushTokenRoutes(app: FastifyInstance) {
   app.addHook('preHandler', authMiddleware);
   const pool = container.resolve<Pool>('DatabasePool');
 
-  /** Registra ou atualiza o push token do dispositivo */
   app.post('/push-token', async (request, reply) => {
     const { token } = request.body as { token: string };
     if (!token) {
@@ -23,7 +22,6 @@ export async function pushTokenRoutes(app: FastifyInstance) {
     return reply.send({ ok: true });
   });
 
-  /** Remove um push token (logout / desativar notificações) */
   app.delete('/push-token', async (request, reply) => {
     const { token } = request.body as { token: string };
     if (!token) {

@@ -6,12 +6,7 @@ import { env } from '../config/env';
 export async function cronRoutes(app: FastifyInstance) {
   const service = container.resolve<TransactionService>('TransactionService');
 
-  /**
-   * Endpoint chamado pelo Vercel Cron diariamente.
-   * Processa transações recorrentes cujo next_due_date <= hoje.
-   */
   app.get('/api/cron/recurrences', async (request, reply) => {
-    // Verifica CRON_SECRET para garantir que só o Vercel Cron pode chamar
     const authHeader = request.headers['authorization'];
     const cronSecret = env.CRON_SECRET;
 

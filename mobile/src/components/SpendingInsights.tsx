@@ -34,7 +34,6 @@ const SpendingInsights: React.FC<SpendingInsightsProps> = ({ transactions, categ
     );
   }
 
-  // Agrupa por categoria
   const byCategory = new Map<string, number>();
   for (const tx of expenses) {
     const prev = byCategory.get(tx.categoryId) ?? 0;

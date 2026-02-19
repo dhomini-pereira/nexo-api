@@ -23,6 +23,8 @@ import ProfileScreen from '@/screens/ProfileScreen';
 import TransactionFormScreen from '@/screens/TransactionFormScreen';
 import TransferScreen from '@/screens/TransferScreen';
 import ManageRecurrencesScreen from '@/screens/ManageRecurrencesScreen';
+import CreditCardsScreen from '@/screens/CreditCardsScreen';
+import CreditCardDetailScreen from '@/screens/CreditCardDetailScreen';
 
 export type RootStackParamList = {
   Login: undefined;
@@ -34,6 +36,8 @@ export type RootStackParamList = {
   Profile: undefined;
   TransactionForm: { transactionId?: string } | undefined;
   Transfer: undefined;
+  CreditCards: undefined;
+  CreditCardDetail: { cardId: string };
 };
 
 export type TabParamList = {
@@ -161,17 +165,14 @@ const AppNavigation = () => {
   const { fetchAll, reset } = useFinanceStore();
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
 
-  // Ao montar, tenta restaurar sessão do token salvo
   useEffect(() => {
     restoreSession();
   }, []);
 
-  // Ao montar, verifica se a sessão é válida (30 dias)
   useEffect(() => {
     checkSession();
   }, []);
 
-  // Quando autenticado, carrega todos os dados financeiros
   useEffect(() => {
     if (isAuthenticated) {
       fetchAll();
@@ -181,7 +182,6 @@ const AppNavigation = () => {
     }
   }, [isAuthenticated]);
 
-  // Grace period: só bloqueia se ficou fora por mais de 2 min
   useEffect(() => {
     const handleAppState = (nextState: AppStateStatus) => {
       const prev = appStateRef.current;
@@ -212,7 +212,6 @@ const AppNavigation = () => {
     },
   };
 
-  // Decide qual stack mostrar
   const showBiometricLock = isAuthenticated && biometricEnabled && biometricLocked;
   const showLogin = !isAuthenticated;
 
@@ -273,6 +272,16 @@ const AppNavigation = () => {
               name="Transfer"
               component={TransferScreen}
               options={{ title: 'Transferência', presentation: 'modal' }}
+            />
+            <Stack.Screen
+              name="CreditCards"
+              component={CreditCardsScreen}
+              options={{ title: 'Cartões de Crédito' }}
+            />
+            <Stack.Screen
+              name="CreditCardDetail"
+              component={CreditCardDetailScreen}
+              options={{ title: 'Detalhes do Cartão' }}
             />
           </>
         )}

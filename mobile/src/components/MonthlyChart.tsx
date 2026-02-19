@@ -40,13 +40,11 @@ const MonthlyChart: React.FC<MonthlyChartProps> = ({ transactions, height = 200,
     );
   }
 
-  // Calcula o número de semanas do mês atual
   const now = new Date();
   const year = now.getFullYear();
   const month = now.getMonth();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
 
-  // Agrupa despesas por semana do mês
   const weekLabels: string[] = [];
   const weekTotals: number[] = [];
   const weekCount = Math.ceil(daysInMonth / 7);

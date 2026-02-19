@@ -18,9 +18,7 @@ import { formatCurrency, parseCurrencyInput } from '@/lib/finance';
 import InputField from '@/components/InputField';
 import CurrencyInput from '@/components/CurrencyInput';
 
-/** Aceita "1.500,50" ou "1500.50" ou "1500,50" */
 const parseAmount = (raw: string): number => {
-  // Se for máscara R$, usa parseCurrencyInput
   if (raw.includes('R$')) return parseCurrencyInput(raw);
   const s = raw.trim();
   if (!s) return 0;
@@ -55,7 +53,6 @@ const TransferScreen = () => {
 
   const handleSelectFrom = (id: string) => {
     setFromId(id);
-    // Limpa destino se for a mesma conta
     if (toId === id) setToId('');
   };
 

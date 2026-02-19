@@ -11,8 +11,6 @@ const BiometricLockScreen = () => {
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
 
   const handleUnlock = useCallback(async () => {
-    // Pequeno delay para garantir que o prompt biométrico apareça corretamente
-    // quando voltando do background/recents
     await new Promise((r) => setTimeout(r, 300));
     await unlockWithBiometric();
   }, [unlockWithBiometric]);
@@ -21,7 +19,6 @@ const BiometricLockScreen = () => {
     handleUnlock();
   }, []);
 
-  // Re-tenta biometria quando o app volta ao foreground na tela de lock
   useEffect(() => {
     const sub = AppState.addEventListener('change', (nextState: AppStateStatus) => {
       const prev = appStateRef.current;
